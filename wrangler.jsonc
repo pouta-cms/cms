@@ -1,0 +1,20 @@
+{
+	"compatibility_date": "2026-05-26",
+	"compatibility_flags": ["global_fetch_strictly_public"],
+	"name": "cms",
+	"main": "@astrojs/cloudflare/entrypoints/server",
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "pouta-d1-db",
+			"database_id": "your-d1-db-id-here"
+		}
+	]
+}

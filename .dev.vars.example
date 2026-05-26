@@ -1,0 +1,9 @@
+# ☀️ Pouta CMS Local Secrets Template
+# Copy this file to '.dev.vars' and fill in your actual credentials
+# DO NOT commit '.dev.vars' to Git.
+
+GITHUB_APP_ID="your_github_app_id_here"
+GITHUB_CLIENT_ID="your_github_oauth_client_id_here"
+GITHUB_CLIENT_SECRET="your_github_oauth_client_secret_here"
+GITHUB_APP_PRIVATE_KEY_B64="your_base64_encoded_pem_private_key_here"
+SESSION_SECRET="your_custom_32_character_session_key_here"
