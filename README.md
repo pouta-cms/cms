@@ -1,10 +1,11 @@
 # ☀️ pouta
 
-> **Clear skies for web development.** An open-source, SaaS-ready, Git-Backed Headless CMS Gateway built explicitly for **Astro** and the **Edge**. Running entirely on Cloudflare serverless edge infrastructure (Pages & Workers) and SQLite at the Edge (Cloudflare D1).
+> **Clear skies for web development.** An open-source, SaaS-ready, framework-agnostic **Git-Backed Headless CMS** built explicitly for the **Edge**. Running entirely on Cloudflare serverless edge infrastructure (Pages & Workers) and SQLite at the Edge (Cloudflare D1).
 
 ![Pouta CMS Dashboard Banner](https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200)
 
-Pouta CMS combines the speed, security, and developer experience of GitOps with a familiar, high-fidelity block-editing canvas (powered by BlockNote). The CMS is **completely schema-agnostic**—it has zero local knowledge of your content structure. When a creator signs in, Pouta fetches their target repository’s config (`pouta.config.json`) dynamically from Git and draws the visual sidebars, metadata fields, and write paths on the fly!
+Pouta CMS combines the speed, security, and developer experience of GitOps with a familiar, high-fidelity block-editing canvas (powered by BlockNote). The CMS is **completely schema-agnostic and framework-agnostic**—it has zero local knowledge of your content structure. When a creator signs in, Pouta fetches their target repository’s config (`pouta.config.json`) dynamically from Git and draws the visual sidebars, metadata fields, and write paths on the fly! This makes it fully compatible with **any** Markdown-powered website or static site generator, including **Astro, Next.js, Eleventy, Nuxt, Hugo, Jekyll, and Gatsby**.
+
 
 ---
 
@@ -94,7 +95,7 @@ To ensure high security, sensitive credentials and secrets must **never** be com
    GITHUB_APP_ID="1002345"
    GITHUB_CLIENT_ID="Iv1.xxxxxxxxx"
    GITHUB_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-   GITHUB_APP_PRIVATE_KEY_B64="MIIEvgIBADANBgkqhkiG9w0BAQE..."
+   GITHUB_APP_PRIVATE_KEY_B64="your_base64_encoded_private_key_pem_here"
    SESSION_SECRET="your-dynamic-secret-passphrase-32-chars-minimum"
    ```
 

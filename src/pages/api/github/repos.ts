@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { verifySession } from '../../../utils/auth';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ request }) => {
   try {
-    const env = (locals as any).runtime?.env || {};
     const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
 
     // 1. Verify stateless session cookie

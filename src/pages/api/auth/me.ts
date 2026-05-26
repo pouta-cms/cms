@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { decryptToken } from '../../../utils/crypto';
 
 export const prerender = false;
@@ -17,7 +18,7 @@ function getCookie(request: Request, name: string): string | null {
   return null;
 }
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ request }) => {
   try {
     const sealedCookie = getCookie(request, 'pouta_session');
 
@@ -28,7 +29,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const env = (locals as any).runtime?.env || {};
     const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
 
     // Decrypt token statelessly

@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { verifySession, verifyCollaborator } from '../../../utils/auth';
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const {
@@ -34,7 +35,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const env = (locals as any).runtime?.env || {};
     const db = env.DB;
     const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
 

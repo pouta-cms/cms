@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { encryptToken } from '../../../utils/crypto';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ request }) => {
   try {
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
@@ -15,7 +16,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    const env = (locals as any).runtime?.env || {};
     const clientId = env.GITHUB_CLIENT_ID;
     const clientSecret = env.GITHUB_CLIENT_SECRET;
     const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';

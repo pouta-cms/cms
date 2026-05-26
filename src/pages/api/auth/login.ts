@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ request, locals }) => {
-  const env = (locals as any).runtime?.env || {};
+export const GET: APIRoute = async ({ request }) => {
   const clientId = env.GITHUB_CLIENT_ID;
 
   if (!clientId || clientId === 'placeholder_github_client_id') {

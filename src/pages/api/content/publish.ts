@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { verifySession, verifyCollaborator } from '../../../utils/auth';
 import { getInstallationAccessToken } from '../../../utils/githubApp';
 
@@ -119,7 +120,7 @@ function blocksToMarkdown(blocks: any[]): string {
   return blocks.map(blockToMarkdown).join('');
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const { id } = body;
@@ -140,7 +141,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const env = (locals as any).runtime?.env || {};
     const db = env.DB;
     const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
     const appId = env.GITHUB_APP_ID;

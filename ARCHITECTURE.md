@@ -1,6 +1,6 @@
 # ☀️ Pouta CMS Architecture Blueprint
 
-This document details the architectural layout, cryptographic specifications, multi-tenant security layers, and data-flow pipelines of **Pouta**, a SaaS-ready, Git-backed headless CMS gateway engineered for the Edge.
+This document details the architectural layout, cryptographic specifications, multi-tenant security layers, and data-flow pipelines of **Pouta**, a SaaS-ready, framework-agnostic Git-backed headless CMS engineered for the Edge.
 
 ---
 

@@ -1,10 +1,11 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { verifySession, verifyCollaborator } from '../../../utils/auth';
 import { getInstallationAccessToken } from '../../../utils/githubApp';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ request }) => {
   try {
     const url = new URL(request.url);
     const repoFullName = url.searchParams.get('repo');
@@ -28,7 +29,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const env = (locals as any).runtime?.env || {};
     const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
     const appId = env.GITHUB_APP_ID;
     const privateKeyB64 = env.GITHUB_APP_PRIVATE_KEY_B64;

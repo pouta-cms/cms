@@ -9,7 +9,8 @@ export default defineConfig({
   output: 'static',
   adapter: cloudflare({
     platformProxy: {
-      enabled: true
+      enabled: true,
+      configPath: 'wrangler.local.jsonc'
     }
   }),
   integrations: [react()]

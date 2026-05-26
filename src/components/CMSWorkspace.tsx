@@ -464,50 +464,41 @@ export default function CMSWorkspace() {
   // ----------------------------------------------------
   // Loader Indicator State
   // ----------------------------------------------------
-  if (loadingAuth) {
-    return (
-      <div className="login-screen">
-        <div className="login-card text-center">
-          <div className="spinner-large"></div>
-          <p className="mt-4 text-slate-400">Verifying profile session...</p>
-        </div>
-      </div>
-    );
-  }
-
   // ----------------------------------------------------
-  // Sign In / OAuth Landing Page
-  // ----------------------------------------------------
-  if (!user || !user.authenticated) {
-    return (
-      <div className="login-screen">
-        <div className="login-card">
-          <div className="brand-header text-center">
-            <img src="/logo.svg" alt="Pouta Logo" className="login-logo-img" />
-            <h1 className="login-brand-title">pouta</h1>
-            <span className="logo-badge">SaaS Headless Engine</span>
-          </div>
-
-          <p className="login-intro">
-            A secure, multi-tenant Git-Backed Headless CMS running entirely on Cloudflare edge serverless computing. Lock your workspace globally, load repository-hosted GitOps config schemas, and push commits natively.
-          </p>
-
-          <a href="/api/auth/login" className="btn-login-github">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"></path>
-            </svg>
-            Sign in with GitHub
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  // ----------------------------------------------------
-  // dynamic CMS Workspace layout
+  // Dynamic UI Render Router (Guarantees Styles are Always Mounted)
   // ----------------------------------------------------
   return (
-    <div className="cms-layout">
+    <>
+      {loadingAuth ? (
+        <div className="login-screen">
+          <div className="login-card text-center">
+            <div className="spinner-large"></div>
+            <p className="mt-4 text-slate-400">Verifying profile session...</p>
+          </div>
+        </div>
+      ) : !user || !user.authenticated ? (
+        <div className="login-screen">
+          <div className="login-card">
+            <div className="brand-header text-center">
+              <img src="/logo.svg" alt="Pouta Logo" className="login-logo-img" />
+              <h1 className="login-brand-title">pouta</h1>
+              <span className="logo-badge">SaaS Headless Engine</span>
+            </div>
+
+            <p className="login-intro">
+              A secure, multi-tenant Git-Backed Headless CMS running entirely on Cloudflare edge serverless computing. Lock your workspace globally, load repository-hosted GitOps config schemas, and push commits natively.
+            </p>
+
+            <a href="/api/auth/login" className="btn-login-github">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"></path>
+              </svg>
+              Sign in with GitHub
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="cms-layout">
       {/* Top Header Bar */}
       <header className="cms-header">
         <div className="header-logo">
@@ -518,7 +509,7 @@ export default function CMSWorkspace() {
 
         {/* Global Repository Workspace selector */}
         <div className="workspace-site-selector-wrapper">
-          <label className="site-select-label">Active Workspace:</label>
+          <label className="site-select-label">Workspace:</label>
           {loadingRepos ? (
             <span className="text-slate-400 text-xs">Loading sites...</span>
           ) : (
@@ -534,6 +525,19 @@ export default function CMSWorkspace() {
               ))}
             </select>
           )}
+          <a
+            href="https://github.com/apps/pouta-cms/installations/new"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-add-repo"
+            title="Connect a new repository"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Repo
+          </a>
         </div>
         
         <div className="header-actions">
@@ -854,6 +858,8 @@ export default function CMSWorkspace() {
 
         </div>
       )}
+        </div>
+      )}
 
       {/* Styled JSX for Premium UI Aesthetics */}
       <style>{`
@@ -907,11 +913,20 @@ export default function CMSWorkspace() {
           align-items: center;
         }
 
+        .brand-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          width: 100%;
+          margin-bottom: 1.5rem;
+        }
+
         .login-logo-img {
           height: 4.5rem;
           width: auto;
           display: block;
-          margin: 0 auto 1.25rem;
+          margin: 0 auto 1rem;
           filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.3));
         }
 
@@ -921,6 +936,7 @@ export default function CMSWorkspace() {
           letter-spacing: -0.04em;
           color: white;
           margin-bottom: 0.5rem;
+          text-align: center;
         }
 
         .login-intro {
@@ -1031,6 +1047,32 @@ export default function CMSWorkspace() {
           font-weight: 700;
           outline: none;
           cursor: pointer;
+        }
+
+        .btn-add-repo {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          padding: 0.25rem 0.55rem;
+          border-radius: 6px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--text-muted);
+          font-size: 0.72rem;
+          font-weight: 600;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+          margin-left: 0.25rem;
+        }
+        .btn-add-repo:hover {
+          background: rgba(255, 200, 0, 0.1);
+          border-color: rgba(255, 200, 0, 0.35);
+          color: #fbbf24;
+        }
+        .btn-add-repo svg {
+          flex-shrink: 0;
         }
 
         .header-actions {
@@ -1622,6 +1664,6 @@ export default function CMSWorkspace() {
           color: var(--text-light) !important;
         }
       `}</style>
-    </div>
+    </>
   );
 }
