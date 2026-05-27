@@ -319,6 +319,15 @@ export const POST: APIRoute = async ({ request }) => {
       const value = metadata[field.name];
       if (field.type === 'number') {
         frontmatterRows.push(`${field.name}: ${Number(value) || 0}`);
+      } else if (field.type === 'list' || field.type === 'array' || field.type === 'tags') {
+        let arr: string[] = [];
+        if (Array.isArray(value)) {
+          arr = value;
+        } else if (typeof value === 'string') {
+          arr = value.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+        const escapedItems = arr.map(item => `"${escapeYaml(item)}"`);
+        frontmatterRows.push(`${field.name}: [${escapedItems.join(', ')}]`);
       } else {
         frontmatterRows.push(`${field.name}: "${escapeYaml(value)}"`);
       }
@@ -379,7 +388,7 @@ ${markdownBody}`;
         'User-Agent': 'Astro-PoutaCMS',
       },
       body: JSON.stringify({
-        message: `Publish ${typeConfig.label}: ${doc.title}`,
+        message: `docs(${doc.type}): publish "${doc.title}"`,
         content: base64Content,
         branch: repoBranch,
         ...(sha ? { sha } : {}),
