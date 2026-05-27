@@ -20,7 +20,14 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export const POST: APIRoute = async ({ request }) => {
   try {
     // 1. Authenticate user session statelessly
-    const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
+    const sessionSecret = env.SESSION_SECRET;
+    if (!sessionSecret) {
+      console.error('SESSION_SECRET environment variable is not set.');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Internal server error.' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     let userToken = '';
     try {
       userToken = await verifySession(request, sessionSecret);
@@ -64,7 +71,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // 4. Validate image constraints (Format & Mime Type)
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-    if (!ALLOWED_MIME_TYPES.includes(file.type) && !ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    if (!ALLOWED_MIME_TYPES.includes(file.type) || !ALLOWED_EXTENSIONS.includes(fileExtension)) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -126,7 +133,7 @@ export const POST: APIRoute = async ({ request }) => {
     } catch (e: any) {
       console.error('Error writing to R2 bucket:', e);
       return new Response(
-        JSON.stringify({ success: false, error: `Failed to write file to R2 storage: ${e.message}` }),
+        JSON.stringify({ success: false, error: 'Internal server error.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -147,7 +154,7 @@ export const POST: APIRoute = async ({ request }) => {
   } catch (error: any) {
     console.error('Unexpected error in image upload endpoint:', error);
     return new Response(
-      JSON.stringify({ success: false, error: `Internal Server Error: ${error.message}` }),
+      JSON.stringify({ success: false, error: 'Internal server error.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

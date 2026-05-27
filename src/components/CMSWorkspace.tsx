@@ -66,7 +66,7 @@ export default function CMSWorkspace() {
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Saving...' | 'Unsaved Changes' | 'Error' | 'Idle'>('Idle');
   const [publishStatus, setPublishStatus] = useState<'Idle' | 'Publishing...' | 'Published!' | 'Error'>('Idle');
   const [publishError, setPublishError] = useState('');
-  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [uploadingFields, setUploadingFields] = useState<Set<string>>(new Set());
 
   // Responsive mobile sidebar drawer state
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -435,7 +435,7 @@ export default function CMSWorkspace() {
       return;
     }
 
-    setUploadingField(fieldName);
+    setUploadingFields(prev => new Set(prev).add(fieldName));
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -466,7 +466,7 @@ export default function CMSWorkspace() {
       console.error('Error uploading metadata image:', err);
       alert(`Upload failed: ${err.message}`);
     } finally {
-      setUploadingField(null);
+      setUploadingFields(prev => { const next = new Set(prev); next.delete(fieldName); return next; });
     }
   };
 
@@ -1019,19 +1019,20 @@ export default function CMSWorkspace() {
                           id={`file-upload-${field.name}`}
                           style={{ display: 'none' }}
                           accept="image/*"
-                          disabled={uploadingField === field.name}
+                          disabled={uploadingFields.has(field.name)}
                           onChange={(e) => {
                             const selectedFile = e.target.files?.[0];
                             if (selectedFile) {
                               handleMetadataImageUpload(field.name, selectedFile);
                             }
+                            e.currentTarget.value = '';
                           }}
                         />
                         <label
                           htmlFor={`file-upload-${field.name}`}
-                          className={`sidebar-upload-btn ${uploadingField === field.name ? 'disabled' : ''}`}
+                          className={`sidebar-upload-btn ${uploadingFields.has(field.name) ? 'disabled' : ''}`}
                         >
-                          {uploadingField === field.name ? (
+                          {uploadingFields.has(field.name) ? (
                             <>
                               <svg className="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                 <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.2)" />
