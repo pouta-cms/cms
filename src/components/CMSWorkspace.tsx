@@ -67,6 +67,10 @@ export default function CMSWorkspace() {
   const [publishStatus, setPublishStatus] = useState<'Idle' | 'Publishing...' | 'Published!' | 'Error'>('Idle');
   const [publishError, setPublishError] = useState('');
 
+  // Responsive mobile sidebar drawer state
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [metaOpen, setMetaOpen] = useState(false);
+
   // Checks authentication state on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -265,6 +269,50 @@ export default function CMSWorkspace() {
     }
   };
 
+  // Delete an existing draft from D1 SQLite edge database
+  const handleDeleteDraft = async (draftId: string, draftTitle: string) => {
+    const confirmMessage = `Are you sure you want to delete the draft "${draftTitle || 'Untitled Draft'}"?\nThis action cannot be undone.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const [owner, name] = selectedRepo.split('/');
+      const response = await fetch('/api/content/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: draftId,
+          repo_owner: owner,
+          repo_name: name,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Find if we deleted the active document
+        const isCurrent = docId === draftId;
+        
+        // Filter out the deleted draft from the state so UI updates instantly
+        const remainingDrafts = drafts.filter((d) => d.id !== draftId);
+        setDrafts(remainingDrafts);
+
+        if (isCurrent) {
+          if (remainingDrafts.length > 0) {
+            // Load the first available remaining draft
+            handleLoadDraftInWorkspace(remainingDrafts[0].id);
+          } else {
+            // Start a fresh new draft if no drafts are left
+            handleCreateNewDraft();
+          }
+        }
+      } else {
+        alert(`Failed to delete draft: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Delete draft error:', err);
+      alert('An error occurred while deleting the draft.');
+    }
+  };
+
   // Create a brand new draft within the active repository scope
   const handleCreateNewDraft = () => {
     if (!activeConfig || !activeConfig.contentTypes || activeConfig.contentTypes.length === 0) return;
@@ -284,10 +332,10 @@ export default function CMSWorkspace() {
 
     setBlocks([
       {
-        id: `head-${newId}`,
-        type: 'heading',
-        props: { level: 2 },
-        content: [{ type: 'text', text: `Draft ${newTypeLabel(firstType.type)} Entry`, styles: {} }]
+        id: `p-${newId}`,
+        type: 'paragraph',
+        props: {},
+        content: []
       }
     ]);
   };
@@ -304,10 +352,10 @@ export default function CMSWorkspace() {
     setMetadata({});
     setBlocks([
       {
-        id: `head-switch-${newType}`,
-        type: 'heading',
-        props: { level: 2 },
-        content: [{ type: 'text', text: `Draft ${newTypeLabel(newType)} Entry`, styles: {} }]
+        id: `p-switch-${newType}`,
+        type: 'paragraph',
+        props: {},
+        content: []
       }
     ]);
   };
@@ -482,7 +530,7 @@ export default function CMSWorkspace() {
             <div className="brand-header text-center">
               <img src="/logo.svg" alt="Pouta Logo" className="login-logo-img" />
               <h1 className="login-brand-title">pouta</h1>
-              <span className="logo-badge">SaaS Headless Engine</span>
+              <span className="logo-badge">Headless CMS</span>
             </div>
 
             <p className="login-intro">
@@ -504,7 +552,7 @@ export default function CMSWorkspace() {
         <div className="header-logo">
           <img src="/logo.svg" alt="Pouta Logo" className="logo-img" />
           <span className="logo-text">pouta</span>
-          <span className="logo-badge">SaaS Engine</span>
+          <span className="logo-badge">Headless CMS</span>
         </div>
 
         {/* Global Repository Workspace selector */}
@@ -541,12 +589,32 @@ export default function CMSWorkspace() {
         </div>
         
         <div className="header-actions">
+          {/* Mobile: Drafts sidebar toggle */}
+          {activeConfig && (
+            <button className="btn-mobile-sidebar-toggle" onClick={() => { setDraftsOpen(o => !o); setMetaOpen(false); }} title="Drafts">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </button>
+          )}
+
           {/* Edge Autosave status */}
           {activeConfig && (
             <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
               <span className="status-dot"></span>
               <span className="status-label">{saveStatus}</span>
             </div>
+          )}
+
+          {/* Mobile: Metadata sidebar toggle */}
+          {activeConfig && (
+            <button className="btn-mobile-sidebar-toggle" onClick={() => { setMetaOpen(o => !o); setDraftsOpen(false); }} title="Settings">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
           )}
 
           {/* User Profile avatar */}
@@ -645,10 +713,16 @@ export default function CMSWorkspace() {
 
       {/* Main 3-Column CMS Workspace Dashboard */}
       {repos.length > 0 && activeConfig && !loadingConfig && (
-        <div className="cms-workspace-grid-three-col">
+        <>
+          {/* Backdrop overlay for mobile drawers */}
+          {(draftsOpen || metaOpen) && (
+            <div className="mobile-drawer-backdrop" onClick={() => { setDraftsOpen(false); setMetaOpen(false); }} />
+          )}
+
+          <div className="cms-workspace-grid-three-col">
           
           {/* Column 1: isolated Drafts Panel (Left) */}
-          <aside className="drafts-list-sidebar">
+          <aside className={`drafts-list-sidebar${draftsOpen ? ' drawer-open' : ''}`}>
             <div className="drafts-sidebar-header">
               <span className="drafts-header-title">Drafts Caching</span>
               <button className="btn-create-new-draft" onClick={handleCreateNewDraft} title="Create New Draft">
@@ -666,19 +740,34 @@ export default function CMSWorkspace() {
                 <div className="drafts-empty">No drafts cached. Click "+" to create one.</div>
               ) : (
                 drafts.map((draft) => (
-                  <button
+                  <div
                     key={draft.id}
                     className={`draft-item-card ${docId === draft.id ? 'draft-item-card-active' : ''}`}
                     onClick={() => handleLoadDraftInWorkspace(draft.id)}
                   >
                     <div className="draft-item-top">
                       <span className="draft-item-title">{draft.title || 'Untitled Draft'}</span>
+                      <button
+                        className="btn-delete-draft"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDraft(draft.id, draft.title);
+                        }}
+                        title="Delete Draft"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          <line x1="10" y1="11" x2="10" y2="17"></line>
+                          <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                      </button>
                     </div>
                     <div className="draft-item-bottom">
                       <span className="draft-item-type-badge">{draft.type}</span>
                       <span className={`draft-item-status status-badge-${draft.status}`}>{draft.status}</span>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
@@ -710,7 +799,7 @@ export default function CMSWorkspace() {
           </section>
 
           {/* Column 3: Declarative Metadata Form Sidebar (Right) */}
-          <aside className="metadata-sidebar-pane">
+          <aside className={`metadata-sidebar-pane${metaOpen ? ' drawer-open' : ''}`}>
             
             {/* dynamic Content Type selection (if multiple types connected) */}
             <div className="sidebar-section-title">Active Collection</div>
@@ -856,7 +945,8 @@ export default function CMSWorkspace() {
             </div>
           </aside>
 
-        </div>
+          </div>
+        </>
       )}
         </div>
       )}
@@ -1047,6 +1137,10 @@ export default function CMSWorkspace() {
           font-weight: 700;
           outline: none;
           cursor: pointer;
+          min-width: 0;
+          max-width: 220px;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .btn-add-repo {
@@ -1328,6 +1422,7 @@ export default function CMSWorkspace() {
         .drafts-list-body {
           flex: 1;
           overflow-y: auto;
+          overflow-x: hidden;
           padding: 0.75rem;
           display: flex;
           flex-direction: column;
@@ -1343,6 +1438,7 @@ export default function CMSWorkspace() {
         }
 
         .draft-item-card {
+          box-sizing: border-box;
           width: 100%;
           background: rgba(255, 255, 255, 0.02);
           border: 1px solid transparent;
@@ -1366,6 +1462,43 @@ export default function CMSWorkspace() {
           border-color: rgba(245, 158, 11, 0.25) !important;
         }
 
+        .btn-delete-draft {
+          background: none;
+          border: none;
+          color: var(--text-muted);
+          padding: 0.25rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          border-radius: 4px;
+          opacity: 0;
+          transition: all 0.2s ease;
+        }
+
+        .draft-item-card:hover .btn-delete-draft {
+          opacity: 1;
+        }
+
+        .btn-delete-draft:hover {
+          color: #ef4444 !important;
+          background: rgba(239, 68, 68, 0.15) !important;
+        }
+
+        @media (max-width: 1279px) {
+          .btn-delete-draft {
+            opacity: 1;
+          }
+        }
+
+        .draft-item-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 0.5rem;
+          width: 100%;
+          min-width: 0;
+        }
+
         .draft-item-title {
           font-size: 0.85rem;
           font-weight: 600;
@@ -1374,6 +1507,8 @@ export default function CMSWorkspace() {
           text-overflow: ellipsis;
           white-space: nowrap;
           display: block;
+          flex: 1;
+          min-width: 0;
         }
 
         .draft-item-bottom {
@@ -1662,6 +1797,180 @@ export default function CMSWorkspace() {
         .bn-editor {
           background: transparent !important;
           color: var(--text-light) !important;
+        }
+
+        /* --------------------------------------------------
+           Mobile sidebar toggle buttons (hidden on desktop)
+           -------------------------------------------------- */
+        .btn-mobile-sidebar-toggle {
+          display: none;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          color: var(--text-muted);
+          width: 2rem;
+          height: 2rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+        }
+        .btn-mobile-sidebar-toggle:hover {
+          background: rgba(255,255,255,0.1);
+          color: white;
+        }
+
+        /* Backdrop overlay */
+        .mobile-drawer-backdrop {
+          display: none;
+          position: fixed;
+          inset: 0;
+          z-index: 199;
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(2px);
+        }
+
+        /* --------------------------------------------------
+           Tablet: 768px – 1279px
+           Drafts sidebar collapses; 2-col editor + meta
+           -------------------------------------------------- */
+        @media (max-width: 1279px) {
+          .btn-mobile-sidebar-toggle { display: flex; }
+
+          .cms-header {
+            padding: 0.75rem 1.25rem;
+            gap: 0.75rem;
+          }
+
+          /* Hide the text label of the workspace selector to save space */
+          .site-select-label { display: none; }
+
+          /* Hide status pill text, show only dot */
+          .status-label { display: none; }
+          .status-pill { padding: 0.4rem 0.55rem; }
+
+          /* Hide full username, keep avatar */
+          .user-name { display: none; }
+
+          /* Hide logo badge */
+          .logo-badge { display: none; }
+
+          .cms-workspace-grid-three-col {
+            grid-template-columns: 1fr 300px;
+          }
+
+          /* Drafts sidebar becomes a fixed left drawer */
+          .drafts-list-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 280px;
+            z-index: 200;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+          }
+          .drafts-list-sidebar.drawer-open {
+            transform: translateX(0);
+          }
+          .mobile-drawer-backdrop { display: block; }
+
+          .canvas-pane {
+            padding: 2rem 2rem;
+          }
+        }
+
+        /* --------------------------------------------------
+           Mobile: < 768px
+           Full single-column, both sidebars are drawers
+           -------------------------------------------------- */
+        @media (max-width: 767px) {
+          /* Two-row header on mobile */
+          .cms-header {
+            flex-wrap: wrap;
+            padding: 0.6rem 0.85rem;
+            gap: 0.5rem;
+          }
+
+          /* Logo takes its natural width, actions push to the right */
+          .header-logo {
+            flex: 1;
+          }
+
+          /* Workspace selector goes full-width on its own row */
+          .workspace-site-selector-wrapper {
+            order: 3;
+            flex: 0 0 100%;
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          /* Constrain the select so a long repo name can't overflow */
+          .site-select {
+            flex: 1;
+            min-width: 0;
+            max-width: calc(100vw - 140px);
+          }
+
+          /* Hide "Add Repo" text, keep only the + icon */
+          .btn-add-repo {
+            font-size: 0;
+            padding: 0.25rem 0.4rem;
+          }
+          .btn-add-repo svg {
+            width: 14px;
+            height: 14px;
+          }
+
+          .cms-workspace-grid-three-col {
+            grid-template-columns: 1fr;
+          }
+
+          /* Both sidebars become full fixed drawers */
+          .drafts-list-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: min(280px, 85vw);
+            z-index: 200;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+          }
+          .drafts-list-sidebar.drawer-open {
+            transform: translateX(0);
+          }
+
+          .metadata-sidebar-pane {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: min(320px, 92vw);
+            z-index: 200;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+          }
+          .metadata-sidebar-pane.drawer-open {
+            transform: translateX(0);
+          }
+
+          .canvas-pane {
+            padding: 1.25rem 1rem;
+          }
+
+          .canvas-title-input {
+            font-size: 1.6rem;
+          }
+
+          .canvas-header-input-wrapper,
+          .canvas-editor-body {
+            max-width: 100%;
+          }
         }
       `}</style>
     </>
