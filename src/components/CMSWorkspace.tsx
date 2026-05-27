@@ -750,6 +750,14 @@ export default function CMSWorkspace() {
                     key={draft.id}
                     className={`draft-item-card ${docId === draft.id ? 'draft-item-card-active' : ''}`}
                     onClick={() => handleLoadDraftInWorkspace(draft.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleLoadDraftInWorkspace(draft.id);
+                      }
+                    }}
                   >
                     <div className="draft-item-top">
                       <span className="draft-item-title">{draft.title || 'Untitled Draft'}</span>
@@ -1462,6 +1470,12 @@ export default function CMSWorkspace() {
         .draft-item-card:hover {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .draft-item-card:focus-visible {
+          outline: 2px solid var(--accent-amber);
+          outline-offset: -2px;
+          background: rgba(255, 255, 255, 0.05);
         }
 
         .draft-item-card-active {
