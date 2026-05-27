@@ -288,21 +288,27 @@ export default function CMSWorkspace() {
 
       const data = await response.json();
       if (data.success) {
-        // Find if we deleted the active document
-        const isCurrent = docId === draftId;
-        
-        // Filter out the deleted draft from the state so UI updates instantly
-        const remainingDrafts = drafts.filter((d) => d.id !== draftId);
-        setDrafts(remainingDrafts);
+        const changes = data.meta?.changes ?? 0;
+        if (changes > 0) {
+          // Find if we deleted the active document
+          const isCurrent = docId === draftId;
+          
+          // Filter out the deleted draft from the state so UI updates instantly
+          const remainingDrafts = drafts.filter((d) => d.id !== draftId);
+          setDrafts(remainingDrafts);
 
-        if (isCurrent) {
-          if (remainingDrafts.length > 0) {
-            // Load the first available remaining draft
-            handleLoadDraftInWorkspace(remainingDrafts[0].id);
-          } else {
-            // Start a fresh new draft if no drafts are left
-            handleCreateNewDraft();
+          if (isCurrent) {
+            if (remainingDrafts.length > 0) {
+              // Load the first available remaining draft
+              handleLoadDraftInWorkspace(remainingDrafts[0].id);
+            } else {
+              // Start a fresh new draft if no drafts are left
+              handleCreateNewDraft();
+            }
           }
+        } else {
+          console.warn('Delete operation succeeded but 0 database rows were changed.');
+          alert('Draft deletion could not be completed (the draft may have already been deleted).');
         }
       } else {
         alert(`Failed to delete draft: ${data.error}`);
