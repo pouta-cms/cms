@@ -43,11 +43,13 @@ Pouta CMS combines the speed, security, and developer experience of GitOps with 
 │   │       │   └── me.ts      # Validates stateless session credentials
 │   │       ├── github/
 │   │       │   └── repos.ts   # Retrieves user App installations & repos
-│   │       └── content/
-│   │           ├── config.ts  # Fetches pouta.config.json dynamically from Git
-│   │           ├── list.ts    # Queries D1 SQLite isolated repository drafts
-│   │           ├── save.ts    # Caches dynamic drafts with collaborator guards
-│   │           └── publish.ts # Dynamic Markdown/YAML Git Publisher API
+│   │       ├── content/
+│   │       │   ├── config.ts  # Fetches pouta.config.json dynamically from Git
+│   │       │   ├── list.ts    # Queries D1 SQLite isolated repository drafts
+│   │       │   ├── save.ts    # Caches dynamic drafts with collaborator guards
+│   │       │   └── publish.ts # Dynamic Markdown/YAML Git Publisher API
+│   │       └── images/
+│   │           └── upload.ts  # Secure multi-tenant Cloudflare R2 image uploader
 │   └── utils/
 │       ├── crypto.ts          # Stateless AES-GCM Cookie Seal Helpers
 │       ├── auth.ts            # Session decrypters & collaborator verifiers
@@ -90,13 +92,14 @@ To ensure high security, sensitive credentials and secrets must **never** be com
    ```bash
    cp .dev.vars.example .dev.vars
    ```
-2. Open `.dev.vars` and add your actual GitHub credentials and session secret:
+2. Open `.dev.vars` and add your actual GitHub credentials, session secret, and R2 public URL prefix:
    ```env
    GITHUB_APP_ID="1002345"
    GITHUB_CLIENT_ID="Iv1.xxxxxxxxx"
    GITHUB_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
    GITHUB_APP_PRIVATE_KEY_B64="your_base64_encoded_private_key_pem_here"
    SESSION_SECRET="your-dynamic-secret-passphrase-32-chars-minimum"
+   R2_PUBLIC_URL_PREFIX="https://media.yourdomain.com"
    ```
 
 #### B. For Production Deployments
@@ -106,7 +109,18 @@ Add these keys under your project settings in the **Cloudflare Pages/Workers Das
 *   `GITHUB_CLIENT_SECRET` (Secret)
 *   `GITHUB_APP_PRIVATE_KEY_B64` (Secret)
 *   `SESSION_SECRET` (Secret)
+*   `R2_PUBLIC_URL_PREFIX` (The custom public domain mapped to your R2 bucket)
 *   **D1 Database Binding**: Bind your database directly in the Cloudflare Dashboard under your Pages Project > **Settings > Functions > D1 Database Bindings**. Bind the variable name `DB` to your production database. This is the recommended approach as it completely removes the need to supply or track the database UUID in `wrangler.jsonc` or CI/CD pipeline files.
+
+#### C. Cloudflare R2 Bucket Setup
+Pouta uses **Cloudflare R2** for fast, high-performance image uploads and serving:
+1.  **Create your R2 Bucket**:
+    Create a new bucket named `pouta-media` locally via Wrangler or via the Cloudflare Dashboard:
+    ```bash
+    npx wrangler r2 bucket create pouta-media
+    ```
+2.  **Map a Custom Domain**:
+    Map a custom domain (e.g. `media.yourdomain.com`) to your R2 bucket in the Cloudflare Dashboard under **R2 > Buckets > pouta-media > Settings > Public access** to serve your uploaded files. Ensure this matches the `R2_PUBLIC_URL_PREFIX` environment variable.
 
 
 
