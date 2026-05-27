@@ -987,6 +987,7 @@ export default function CMSWorkspace() {
                             <button
                               type="button"
                               className="tag-remove-btn"
+                              aria-label={tag ? `Remove tag ${tag}` : "Remove tag"}
                               onClick={() => {
                                 const currentArray = Array.isArray(fieldValue)
                                   ? fieldValue
@@ -1022,6 +1023,21 @@ export default function CMSWorkspace() {
                               }
                               e.currentTarget.value = '';
                             }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = e.currentTarget.value.trim();
+                          if (val) {
+                            const currentArray = Array.isArray(fieldValue)
+                              ? fieldValue
+                              : typeof fieldValue === 'string'
+                              ? fieldValue.split(',').map((s: string) => s.trim()).filter(Boolean)
+                              : [];
+                            if (!currentArray.includes(val)) {
+                              const newArray = [...currentArray, val];
+                              handleMetadataChange(field.name, newArray);
+                            }
+                            e.currentTarget.value = '';
                           }
                         }}
                       />
