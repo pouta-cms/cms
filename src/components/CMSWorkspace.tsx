@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import BlockNoteEditor from './BlockNoteEditor';
 
 // Simple ID generator for documents
@@ -70,6 +70,25 @@ export default function CMSWorkspace() {
   // Responsive mobile sidebar drawer state
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
+
+  // References to keep state values strictly up-to-date in asynchronous closures (e.g. handleDeleteDraft)
+  const docIdRef = useRef(docId);
+  const draftsRef = useRef(drafts);
+  useEffect(() => { docIdRef.current = docId; }, [docId]);
+  useEffect(() => { draftsRef.current = drafts; }, [drafts]);
+
+  // Track responsive screen breakpoints
+  const [showSettingsToggle, setShowSettingsToggle] = useState(true);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkBreakpoint = () => {
+      const isTablet = window.innerWidth >= 768 && window.innerWidth <= 1279;
+      setShowSettingsToggle(!isTablet);
+    };
+    checkBreakpoint();
+    window.addEventListener('resize', checkBreakpoint);
+    return () => window.removeEventListener('resize', checkBreakpoint);
+  }, []);
 
   // Checks authentication state on mount
   useEffect(() => {
@@ -245,8 +264,9 @@ export default function CMSWorkspace() {
   // Let's do that! Let's write `CMSWorkspace.tsx` to handle full columns from the drafts list, and then we will update `list.ts` to return `SELECT * FROM documents...` instead of only the summary columns.
 
   // Let's continue writing `CMSWorkspace.tsx`:
-  const handleLoadDraftInWorkspace = (draftId: string) => {
-    const matched = drafts.find((d: any) => d.id === draftId) as any;
+  const handleLoadDraftInWorkspace = (draftId: string, currentDraftsList?: DocumentDraft[]) => {
+    const listToSearch = currentDraftsList || draftsRef.current;
+    const matched = listToSearch.find((d: any) => d.id === draftId) as any;
     if (!matched) return;
 
     setSaveStatus('Idle');
@@ -290,17 +310,21 @@ export default function CMSWorkspace() {
       if (data.success) {
         const changes = data.meta?.changes ?? 0;
         if (changes > 0) {
+          // Use refs to get the absolute latest values post-await
+          const latestDocId = docIdRef.current;
+          const latestDrafts = draftsRef.current;
+
           // Find if we deleted the active document
-          const isCurrent = docId === draftId;
+          const isCurrent = latestDocId === draftId;
           
           // Filter out the deleted draft from the state so UI updates instantly
-          const remainingDrafts = drafts.filter((d) => d.id !== draftId);
+          const remainingDrafts = latestDrafts.filter((d) => d.id !== draftId);
           setDrafts(remainingDrafts);
 
           if (isCurrent) {
             if (remainingDrafts.length > 0) {
               // Load the first available remaining draft
-              handleLoadDraftInWorkspace(remainingDrafts[0].id);
+              handleLoadDraftInWorkspace(remainingDrafts[0].id, remainingDrafts);
             } else {
               // Start a fresh new draft if no drafts are left
               handleCreateNewDraft();
@@ -614,7 +638,7 @@ export default function CMSWorkspace() {
            )}
  
            {/* Mobile: Metadata sidebar toggle */}
-           {activeConfig && (
+           {activeConfig && showSettingsToggle && (
              <button className="btn-mobile-sidebar-toggle" onClick={() => { setMetaOpen(o => !o); setDraftsOpen(false); }} title="Settings" aria-label="Toggle settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
@@ -753,6 +777,7 @@ export default function CMSWorkspace() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         handleLoadDraftInWorkspace(draft.id);
@@ -766,6 +791,9 @@ export default function CMSWorkspace() {
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteDraft(draft.id, draft.title);
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
                         }}
                         title="Delete Draft"
                         aria-label="Delete draft"
