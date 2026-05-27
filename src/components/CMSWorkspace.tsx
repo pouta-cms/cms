@@ -595,27 +595,27 @@ export default function CMSWorkspace() {
         </div>
         
         <div className="header-actions">
-          {/* Mobile: Drafts sidebar toggle */}
-          {activeConfig && (
-            <button className="btn-mobile-sidebar-toggle" onClick={() => { setDraftsOpen(o => !o); setMetaOpen(false); }} title="Drafts">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-            </button>
-          )}
-
-          {/* Edge Autosave status */}
-          {activeConfig && (
-            <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
-              <span className="status-dot"></span>
-              <span className="status-label">{saveStatus}</span>
-            </div>
-          )}
-
-          {/* Mobile: Metadata sidebar toggle */}
-          {activeConfig && (
-            <button className="btn-mobile-sidebar-toggle" onClick={() => { setMetaOpen(o => !o); setDraftsOpen(false); }} title="Settings">
+           {/* Mobile: Drafts sidebar toggle */}
+           {activeConfig && (
+             <button className="btn-mobile-sidebar-toggle" onClick={() => { setDraftsOpen(o => !o); setMetaOpen(false); }} title="Drafts" aria-label="Toggle drafts">
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                 <polyline points="14 2 14 8 20 8"/>
+               </svg>
+             </button>
+           )}
+ 
+           {/* Edge Autosave status */}
+           {activeConfig && (
+             <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
+               <span className="status-dot"></span>
+               <span className="status-label">{saveStatus}</span>
+             </div>
+           )}
+ 
+           {/* Mobile: Metadata sidebar toggle */}
+           {activeConfig && (
+             <button className="btn-mobile-sidebar-toggle" onClick={() => { setMetaOpen(o => !o); setDraftsOpen(false); }} title="Settings" aria-label="Toggle settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -731,7 +731,7 @@ export default function CMSWorkspace() {
           <aside className={`drafts-list-sidebar${draftsOpen ? ' drawer-open' : ''}`}>
             <div className="drafts-sidebar-header">
               <span className="drafts-header-title">Drafts Caching</span>
-              <button className="btn-create-new-draft" onClick={handleCreateNewDraft} title="Create New Draft">
+              <button className="btn-create-new-draft" onClick={handleCreateNewDraft} title="Create New Draft" aria-label="Create new draft">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -760,6 +760,7 @@ export default function CMSWorkspace() {
                           handleDeleteDraft(draft.id, draft.title);
                         }}
                         title="Delete Draft"
+                        aria-label="Delete draft"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"></polyline>
