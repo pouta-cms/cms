@@ -16,5 +16,12 @@
 			"database_name": "pouta-d1-db",
 			"database_id": "a1bfdf11-00d9-4453-ba50-957324fcf7cd"
 		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA_BUCKET",
+			"bucket_name": "pouta-media"
+		}
 	]
 }
+

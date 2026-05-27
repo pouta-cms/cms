@@ -66,6 +66,7 @@ export default function CMSWorkspace() {
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Saving...' | 'Unsaved Changes' | 'Error' | 'Idle'>('Idle');
   const [publishStatus, setPublishStatus] = useState<'Idle' | 'Publishing...' | 'Published!' | 'Error'>('Idle');
   const [publishError, setPublishError] = useState('');
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   // Responsive mobile sidebar drawer state
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -423,6 +424,50 @@ export default function CMSWorkspace() {
       ...prev,
       [key]: value
     }));
+  };
+
+  // Handle R2 image uploads for declarative settings fields
+  const handleMetadataImageUpload = async (fieldName: string, file: File) => {
+    if (!file) return;
+    const [owner, name] = selectedRepo ? selectedRepo.split('/') : ['', ''];
+    if (!owner || !name) {
+      alert('Please select a repository workspace first.');
+      return;
+    }
+
+    setUploadingField(fieldName);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('repo_owner', owner);
+      formData.append('repo_name', name);
+
+      const response = await fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let errorMsg = 'Failed to upload image';
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch (_) {}
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.url) {
+        throw new Error(data.error || 'Failed to parse upload URL');
+      }
+
+      handleMetadataChange(fieldName, data.url);
+    } catch (err: any) {
+      console.error('Error uploading metadata image:', err);
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setUploadingField(null);
+    }
   };
 
   // Dynamic D1 isolated Autosave debouncer
@@ -848,15 +893,23 @@ export default function CMSWorkspace() {
             
             <div className="canvas-editor-body">
               {docId ? (
-                <BlockNoteEditor
-                  key={docId} // Fresh mount BlockNote editor whenever switching draft scopes
-                  initialContent={JSON.stringify(blocks)}
-                  onChange={(newBlocks) => setBlocks(newBlocks)}
-                />
+                (() => {
+                  const [owner, name] = selectedRepo ? selectedRepo.split('/') : ['', ''];
+                  return (
+                    <BlockNoteEditor
+                      key={docId} // Fresh mount BlockNote editor whenever switching draft scopes
+                      initialContent={JSON.stringify(blocks)}
+                      onChange={(newBlocks) => setBlocks(newBlocks)}
+                      repoOwner={owner}
+                      repoName={name}
+                    />
+                  );
+                })()
               ) : (
                 <div className="text-slate-400 text-sm text-center py-10">Select a draft or create one.</div>
               )}
             </div>
+
           </section>
 
           {/* Column 3: Declarative Metadata Form Sidebar (Right) */}
@@ -959,6 +1012,56 @@ export default function CMSWorkspace() {
                         onChange={(e) => handleMetadataChange(field.name, e.target.value)}
                         placeholder="https://images.unsplash.com/..."
                       />
+                      
+                      <div className="sidebar-upload-btn-row">
+                        <input
+                          type="file"
+                          id={`file-upload-${field.name}`}
+                          style={{ display: 'none' }}
+                          accept="image/*"
+                          disabled={uploadingField === field.name}
+                          onChange={(e) => {
+                            const selectedFile = e.target.files?.[0];
+                            if (selectedFile) {
+                              handleMetadataImageUpload(field.name, selectedFile);
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`file-upload-${field.name}`}
+                          className={`sidebar-upload-btn ${uploadingField === field.name ? 'disabled' : ''}`}
+                        >
+                          {uploadingField === field.name ? (
+                            <>
+                              <svg className="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.2)" />
+                                <path d="M12 2a10 10 0 0 1 10 10" />
+                              </svg>
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                              </svg>
+                              Upload Local Image
+                            </>
+                          )}
+                        </label>
+                        {fieldValue && (
+                          <button
+                            type="button"
+                            className="sidebar-clear-btn"
+                            onClick={() => handleMetadataChange(field.name, '')}
+                            title="Clear image URL"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+
                       {fieldValue && (
                         <div className="sidebar-image-preview">
                           <img 
@@ -1102,7 +1205,9 @@ export default function CMSWorkspace() {
         .cms-layout {
           background-color: var(--bg-dark);
           color: var(--text-light);
-          min-height: 100vh;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
           font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           display: flex;
           flex-direction: column;
@@ -1678,12 +1783,46 @@ export default function CMSWorkspace() {
 
         /* Column 2: Center Editor Pane */
         .canvas-pane {
-          padding: 3rem 4rem;
+          padding: 3rem 4rem 10rem 4rem;
           overflow-y: auto;
           background: linear-gradient(180deg, #0d0f14 0%, #06070a 100%);
           display: flex;
           flex-direction: column;
           align-items: center;
+          height: 100%;
+          min-height: 0;
+        }
+
+        /* Custom Premium Scrollbar Styling */
+        .canvas-pane::-webkit-scrollbar,
+        .drafts-list-body::-webkit-scrollbar,
+        .metadata-sidebar-pane::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        .canvas-pane::-webkit-scrollbar-track,
+        .drafts-list-body::-webkit-scrollbar-track,
+        .metadata-sidebar-pane::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .canvas-pane::-webkit-scrollbar-thumb,
+        .drafts-list-body::-webkit-scrollbar-thumb,
+        .metadata-sidebar-pane::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.12);
+          border-radius: 99px;
+          border: 2px solid transparent;
+          background-clip: padding-box;
+          transition: background 0.2s ease;
+        }
+
+        .canvas-pane::-webkit-scrollbar-thumb:hover,
+        .drafts-list-body::-webkit-scrollbar-thumb:hover,
+        .metadata-sidebar-pane::-webkit-scrollbar-thumb:hover {
+          background: var(--accent-gradient);
+          border: 2px solid transparent;
+          background-clip: padding-box;
         }
 
         .canvas-header-input-wrapper {
@@ -1716,7 +1855,7 @@ export default function CMSWorkspace() {
           background: rgba(18, 22, 31, 0.2);
           border: 1px solid rgba(255, 255, 255, 0.03);
           border-radius: 12px;
-          padding: 1.5rem;
+          padding: 1.5rem 1.5rem 35vh 1.5rem;
           backdrop-filter: blur(8px);
         }
 
@@ -1869,6 +2008,69 @@ export default function CMSWorkspace() {
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        .sidebar-upload-btn-row {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 0.5rem;
+          width: 100%;
+        }
+
+        .sidebar-upload-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px dashed rgba(255, 255, 255, 0.15);
+          border-radius: 6px;
+          padding: 0.5rem 0.8rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: var(--text-light);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: center;
+        }
+
+        .sidebar-upload-btn:hover:not(.disabled) {
+          background: rgba(245, 158, 11, 0.06);
+          border-color: rgba(245, 158, 11, 0.4);
+          color: var(--accent-amber);
+        }
+
+        .sidebar-upload-btn.disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .sidebar-clear-btn {
+          background: rgba(239, 68, 68, 0.08);
+          border: 1px solid rgba(239, 68, 68, 0.2);
+          border-radius: 6px;
+          padding: 0.5rem 0.8rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: #f87171;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .sidebar-clear-btn:hover {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .spin-icon {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          100% {
+            transform: rotate(360deg);
+          }
         }
 
         .divider {

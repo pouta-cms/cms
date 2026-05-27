@@ -6,9 +6,11 @@ import { useCreateBlockNote } from '@blocknote/react';
 interface BlockNoteEditorProps {
   initialContent?: string;
   onChange: (blocks: any[]) => void;
+  repoOwner: string;
+  repoName: string;
 }
 
-export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorProps) {
+export default function BlockNoteEditor({ initialContent, onChange, repoOwner, repoName }: BlockNoteEditorProps) {
   // Safe initial content parsing
   const initialBlocks = useMemo(() => {
     if (!initialContent) return undefined;
@@ -21,10 +23,38 @@ export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteE
     }
   }, [initialContent]);
 
-  // Initialize the BlockNote editor
+  // Initialize the BlockNote editor with a custom R2 uploader hook
   const editor = useCreateBlockNote({
     initialContent: initialBlocks,
+    uploadFile: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('repo_owner', repoOwner);
+      formData.append('repo_name', repoName);
+
+      const response = await fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let errorMsg = 'Failed to upload image';
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch (_) {}
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.url) {
+        throw new Error(data.error || 'Failed to parse upload URL');
+      }
+
+      return data.url; // Returns full custom domain URL of the stored file
+    }
   });
+
 
   return (
     <div className="w-full h-full min-h-[500px] text-left">

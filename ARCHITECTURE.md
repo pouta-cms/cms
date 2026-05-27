@@ -22,6 +22,7 @@ graph TD
         JWTSigner["Edge-Native RS256 JWT Signer"]
         API["Edge Serverless API Endpoints"]
         D1DB[("Cloudflare D1 SQLite Cache")]
+        R2Bucket[("Cloudflare R2 Object Storage")]
     end
 
     subgraph GitHub ["GitHub Infrastructure"]
@@ -42,6 +43,10 @@ graph TD
     Editor -->|8. Autosave cache| D1DB
     UI -->|9. Trigger Publish| API
     API -->|10. Push markdown commit| GHApp
+    
+    Editor -->|11. Upload file| API
+    API -->|12. PUT binary data| R2Bucket
+    Client -->|13. Direct public render| R2Bucket
 ```
 
 ---
@@ -321,3 +326,45 @@ sequenceDiagram
     API->>D1: UPDATE documents SET status = 'published'
     API-->>UI: Alert Writer: "Successfully Published!"
 ```
+
+---
+
+## 8. Multi-Tenant Serverless Image Pipeline (Cloudflare R2)
+
+Pouta manages image uploads and delivery at the Edge without third-party SaaS dependencies or Git repository bloat by utilizing **Cloudflare R2 Object Storage**.
+
+```mermaid
+sequenceDiagram
+    actor Writer as Writer (User)
+    participant Editor as BlockNote Editor Canvas
+    participant API as Edge API (/api/images/upload)
+    participant R2 as Cloudflare R2 Bucket
+    
+    Writer->>Editor: Pastes / Drops Image File
+    Editor->>API: POST multipart/form-data (File, repo_owner, repo_name)
+    API->>API: Verify session & collaborator push access
+    API->>API: Validate file (< 5MB, safe image mime-type)
+    API->>R2: PutObject (uploads/{owner}/{repo}/{uuid}-{name})
+    R2-->>API: Confirm upload
+    API-->>Editor: Return full custom domain URL (R2_PUBLIC_URL_PREFIX)
+    Editor-->>Writer: Render image in editor canvas
+```
+
+### A. Size & Type Safety Constraints
+To maintain fast client rendering and protect storage limits, the upload API performs strict pre-upload checks:
+*   **Max Size**: Files are restricted to a maximum of **5MB** (`MAX_FILE_SIZE = 5 * 1024 * 1024`).
+*   **Safe Mime-Types**: Restricted strictly to standard web image types: `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/svg+xml`, `image/avif`.
+
+### B. Tenancy Namespace Isolation
+To ensure multi-tenant boundary isolation, images are stored in R2 under keys prefixed by the active repository collaborator scope:
+```
+uploads/{repo_owner}/{repo_name}/{cryptographic_uuid}-{safe_filename}
+```
+*   `repo_owner` and `repo_name` are supplied by the React visual workspace and validated against the writer's token real-time collaborator permissions (`permissions.push === true`).
+*   A cryptographically secure random UUID is prepended to prevent file-name collisions or overwrite attacks.
+
+### C. Zero-Egress Edge Delivery
+Images are served directly bypassing the Astro Worker:
+*   **Custom Domain Routing**: An external CNAME or custom domain (e.g. `media.yourdomain.com`) is mapped directly to the R2 bucket in the Cloudflare dashboard.
+*   **URL Prefixing**: The API resolves the environment variable `R2_PUBLIC_URL_PREFIX` to prepend the absolute serving path to the client. This guarantees zero-egress charges, CDN-level caching, and instant file rendering.
+
