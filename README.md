@@ -120,6 +120,9 @@ Commit a `pouta.config.json` at the root of your target website repository. Pout
       "label": "Blog Posts",
       "writePath": "src/content/posts/{slug}.md",
       "fields": [
+        { "name": "layout", "label": "Layout", "type": "select", "options": ["post", "page"] },
+        { "name": "author", "label": "Author", "type": "select", "options": ["moha", "other-author"] },
+        { "name": "categories", "label": "Categories", "type": "list" },
         { "name": "featured_image_url", "label": "Featured Image", "type": "image" },
         { "name": "seo_title", "label": "SEO Title", "type": "text" },
         { "name": "seo_description", "label": "SEO Description", "type": "textarea" }

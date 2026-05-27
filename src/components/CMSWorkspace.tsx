@@ -119,11 +119,23 @@ export default function CMSWorkspace() {
       if (data.success && data.repos && data.repos.length > 0) {
         setRepos(data.repos);
         
-        // Select the first repository globally by default
-        const firstRepo = data.repos[0];
-        setSelectedRepo(firstRepo.full_name);
-        setSelectedBranch(firstRepo.default_branch || 'main');
-        setGithubInstallationId(firstRepo.github_installation_id);
+        // Select the last remembered repository, or default to the first one
+        const savedRepo = typeof window !== 'undefined' ? localStorage.getItem('pouta_last_repo') : null;
+        const matchedSaved = savedRepo ? data.repos.find((r: any) => r.full_name === savedRepo) : null;
+        
+        if (matchedSaved) {
+          setSelectedRepo(matchedSaved.full_name);
+          setSelectedBranch(matchedSaved.default_branch || 'main');
+          setGithubInstallationId(matchedSaved.github_installation_id);
+        } else {
+          const firstRepo = data.repos[0];
+          setSelectedRepo(firstRepo.full_name);
+          setSelectedBranch(firstRepo.default_branch || 'main');
+          setGithubInstallationId(firstRepo.github_installation_id);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pouta_last_repo', firstRepo.full_name);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to retrieve connected repositories:', err);
@@ -135,6 +147,9 @@ export default function CMSWorkspace() {
   // Sync workspace properties when switching active repositories
   const handleRepoChange = (repoFullName: string) => {
     setSelectedRepo(repoFullName);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pouta_last_repo', repoFullName);
+    }
     const matched = repos.find(r => r.full_name === repoFullName);
     if (matched) {
       setSelectedBranch(matched.default_branch || 'main');
@@ -711,6 +726,9 @@ export default function CMSWorkspace() {
       "label": "Blog Posts",
       "writePath": "content/posts/{slug}.md",
       "fields": [
+        { "name": "layout", "label": "Layout", "type": "select", "options": ["post", "page"] },
+        { "name": "author", "label": "Author", "type": "select", "options": ["moha", "other-author"] },
+        { "name": "categories", "label": "Categories", "type": "list" },
         { "name": "featured_image_url", "label": "Featured Image", "type": "image" },
         { "name": "seo_title", "label": "SEO Title", "type": "text" },
         { "name": "seo_description", "label": "SEO Description", "type": "textarea" }
@@ -866,14 +884,15 @@ export default function CMSWorkspace() {
             <div className="sidebar-section-title">{activeTypeLabel} Settings</div>
             
             <div className="sidebar-group">
-              <label className="sidebar-label">Unique Slug Link</label>
+              <label className="sidebar-label">Document Slug</label>
               <div className="slug-input-wrapper">
-                <span className="slug-prefix">/{activeType}/</span>
+                <span className="slug-prefix">slug:</span>
                 <input
                   type="text"
                   className="sidebar-input slug-input"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                  placeholder="e.g. zero-hosting-costs"
                 />
               </div>
             </div>
@@ -952,6 +971,61 @@ export default function CMSWorkspace() {
                         </div>
                       )}
                     </>
+                  )}
+
+                  {(field.type === 'list' || field.type === 'array' || field.type === 'tags') && (
+                    <div className="tags-input-container">
+                      <div className="tags-list">
+                        {(Array.isArray(fieldValue)
+                          ? fieldValue
+                          : typeof fieldValue === 'string'
+                          ? fieldValue.split(',').map((s: string) => s.trim()).filter(Boolean)
+                          : []
+                        ).map((tag: string, index: number) => (
+                          <span key={index} className="tag-pill">
+                            {tag}
+                            <button
+                              type="button"
+                              className="tag-remove-btn"
+                              onClick={() => {
+                                const currentArray = Array.isArray(fieldValue)
+                                  ? fieldValue
+                                  : typeof fieldValue === 'string'
+                                  ? fieldValue.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                  : [];
+                                const newArray = currentArray.filter((_: any, i: number) => i !== index);
+                                handleMetadataChange(field.name, newArray);
+                              }}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <input
+                        type="text"
+                        className="sidebar-input tag-input-field"
+                        placeholder="Add item and press Enter..."
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault();
+                            const val = e.currentTarget.value.trim();
+                            if (val) {
+                              const currentArray = Array.isArray(fieldValue)
+                                ? fieldValue
+                                : typeof fieldValue === 'string'
+                                ? fieldValue.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                : [];
+                              if (!currentArray.includes(val)) {
+                                const newArray = [...currentArray, val];
+                                handleMetadataChange(field.name, newArray);
+                              }
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               );
@@ -1681,6 +1755,54 @@ export default function CMSWorkspace() {
           border-color: var(--accent-orange);
           box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
           background: rgba(10, 12, 16, 0.8);
+        }
+
+        .tags-input-container {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .tags-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+        }
+
+        .tag-pill {
+          display: inline-flex;
+          align-items: center;
+          background: rgba(245, 158, 11, 0.15);
+          color: #fbbf24;
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          border-radius: 4px;
+          padding: 0.2rem 0.5rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          transition: all 0.2s ease;
+        }
+
+        .tag-pill:hover {
+          background: rgba(245, 158, 11, 0.25);
+          border-color: rgba(245, 158, 11, 0.5);
+        }
+
+        .tag-remove-btn {
+          background: none;
+          border: none;
+          color: #f87171;
+          margin-left: 0.3rem;
+          cursor: pointer;
+          font-size: 0.875rem;
+          line-height: 1;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .tag-remove-btn:hover {
+          color: #ef4444;
         }
 
         .pivot-select-sidebar {
