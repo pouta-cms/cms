@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { verifySession, verifyCollaborator } from '../../../utils/auth';
 import { getInstallationAccessToken } from '../../../utils/githubApp';
+import { resolveWritePath } from '../../../utils/path';
 
 export const prerender = false;
 
@@ -301,36 +302,8 @@ export const POST: APIRoute = async ({ request }) => {
       console.warn('Metadata JSON parsing failed, using empty object.');
     }
 
-    // Replace {slug}, {year}, {month}, {day} tokens in writePath
-    let dateStr = '';
-    if (metadata && metadata.date) {
-      dateStr = String(metadata.date);
-    } else if (doc.created_at) {
-      dateStr = String(doc.created_at);
-    }
-
-    let year = '';
-    let month = '';
-    let day = '';
-
-    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (dateMatch) {
-      year = dateMatch[1];
-      month = dateMatch[2];
-      day = dateMatch[3];
-    } else {
-      const d = dateStr ? new Date(dateStr) : new Date();
-      const validDate = !isNaN(d.getTime()) ? d : new Date();
-      year = String(validDate.getFullYear());
-      month = String(validDate.getMonth() + 1).padStart(2, '0');
-      day = String(validDate.getDate()).padStart(2, '0');
-    }
-
-    const resolvedPath = typeConfig.writePath
-      .split('{slug}').join(doc.slug)
-      .split('{year}').join(year)
-      .split('{month}').join(month)
-      .split('{day}').join(day);
+    // Replace {slug}, {year}, {month}, {day} tokens in writePath using the shared utility module
+    const resolvedPath = resolveWritePath(typeConfig.writePath, doc.slug, metadata, doc.created_at);
 
     // 7. Parse content blocks
     let blocks = [];
