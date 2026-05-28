@@ -19,6 +19,21 @@ function getCookie(request: Request, name: string): string | null {
   return null;
 }
 
+// Escape Markdown control characters for alt text accessibility
+function escapeMarkdown(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/`/g, '\\`')
+    .replace(/\*/g, '\\*')
+    .replace(/_/g, '\\_')
+    .replace(/~/g, '\\~');
+}
+
 // BlockNote JSON structure converter to Markdown
 function blockToMarkdown(block: any): string {
   let md = '';
@@ -85,8 +100,9 @@ function blockToMarkdown(block: any): string {
     }
     case 'image': {
       const url = block.props?.url || '';
-      const caption = block.props?.caption || 'Image';
-      md += `![${caption}](${url})\n\n`;
+      const altText = block.props?.name || block.props?.caption || 'Image';
+      const safeAlt = escapeMarkdown(altText);
+      md += `![${safeAlt}](${url})\n\n`;
       break;
     }
     default: {

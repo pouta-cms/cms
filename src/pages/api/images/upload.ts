@@ -142,14 +142,70 @@ export const POST: APIRoute = async ({ request }) => {
     const domainPrefix = publicUrlPrefix.replace(/\/$/, '');
     const publicUrl = `${domainPrefix}/${storageKey}`;
 
+    // 8. AI-Powered Automatic Alt-Text Generation using Cloudflare Workers AI Vision
+    let altText = '';
+    const ai = (env as any).AI;
+    if (ai) {
+      try {
+        const uint8Array = new Uint8Array(fileBuffer);
+        const imageBytes = [...uint8Array];
+        const promptText = 'Generate a highly descriptive, concise HTML alt text (max 15 words) for this image for accessibility. Return ONLY the raw alt text description. Do NOT include preamble, quotes, introductory phrases, or markdown.';
+
+        let aiResponse;
+        try {
+          // Attempt using Llama 3.2 Vision model (Chat-instruct structure)
+          aiResponse = await ai.run('@cf/meta/llama-3.2-11b-vision-instruct', {
+            image: imageBytes,
+            max_tokens: 64,
+            messages: [
+              { role: 'user', content: promptText }
+            ]
+          });
+        } catch (llamaErr) {
+          console.warn('Llama 3.2 Vision model failed, falling back to LLaVA:', llamaErr);
+          // Fallback to LLaVA 1.5 (Standard image-to-text structure)
+          aiResponse = await ai.run('@cf/llava-hf/llava-1.5-7b-hf', {
+            image: imageBytes,
+            prompt: promptText
+          });
+        }
+
+        altText = aiResponse?.description || aiResponse?.response || aiResponse?.text || '';
+        altText = altText.trim();
+        
+        // Strip enclosing quotes if returned
+        if (altText.startsWith('"') && altText.endsWith('"')) {
+          altText = altText.substring(1, altText.length - 1).trim();
+        }
+        if (altText.startsWith("'") && altText.endsWith("'")) {
+          altText = altText.substring(1, altText.length - 1).trim();
+        }
+      } catch (aiError) {
+        console.error('Failed to generate automatic alt-text via Workers AI:', aiError);
+      }
+    }
+
+    // Default fallback alt text if AI is unavailable or fails
+    if (!altText) {
+      const lastDotIndex = file.name.lastIndexOf('.');
+      const baseName = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+      altText = baseName.replace(/[-_]+/g, ' ').trim();
+      
+      if (!altText) {
+        altText = file.name || 'uploaded image';
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         url: publicUrl,
-        key: storageKey
+        key: storageKey,
+        altText
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
+
 
   } catch (error: any) {
     console.error('Unexpected error in image upload endpoint:', error);
