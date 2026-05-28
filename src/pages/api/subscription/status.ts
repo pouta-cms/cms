@@ -76,7 +76,7 @@ export const GET: APIRoute = async ({ request }) => {
       } catch (dbErr) {
         console.error('Failed to query subscription from D1 cache:', dbErr);
         return new Response(
-          JSON.stringify({ success: false, error: 'D1 lookup failed', details: String(dbErr) }),
+          JSON.stringify({ success: false, error: 'D1 lookup failed', message: 'An error occurred while retrieving subscription status.' }),
           { status: 503, headers: { 'Content-Type': 'application/json' } }
         );
       }
