@@ -75,6 +75,10 @@ export const GET: APIRoute = async ({ request }) => {
         }
       } catch (dbErr) {
         console.error('Failed to query subscription from D1 cache:', dbErr);
+        return new Response(
+          JSON.stringify({ success: false, error: 'D1 lookup failed', details: String(dbErr) }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        );
       }
     } else {
       // If paywall is disabled, bypass and return active
@@ -82,7 +86,21 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     // 5. Build dynamic checkout URL and static customer portal link safely
-    const stripePaymentLink = env.STRIPE_PAYMENT_LINK || 'https://buy.stripe.com/mock-pay-link';
+    const stripePaymentLink = env.STRIPE_PAYMENT_LINK;
+    const stripePortalLink = env.STRIPE_PORTAL_LINK;
+
+    if (!stripePaymentLink || !stripePortalLink) {
+      console.error('Missing Stripe configuration: STRIPE_PAYMENT_LINK or STRIPE_PORTAL_LINK is not set.');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Missing Stripe configuration',
+          message: 'Stripe integration is not fully configured. Please set STRIPE_PAYMENT_LINK and STRIPE_PORTAL_LINK.'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     let checkoutUrl = '';
     try {
       const urlObj = new URL(stripePaymentLink);
@@ -91,7 +109,7 @@ export const GET: APIRoute = async ({ request }) => {
     } catch (_) {
       checkoutUrl = `${stripePaymentLink}?client_reference_id=${encodeURIComponent(repoPath.toLowerCase())}`;
     }
-    const portalUrl = env.STRIPE_PORTAL_LINK || 'https://billing.stripe.com/p/login/mock-portal';
+    const portalUrl = stripePortalLink;
 
     return new Response(
       JSON.stringify({
