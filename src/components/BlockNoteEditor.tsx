@@ -8,9 +8,10 @@ interface BlockNoteEditorProps {
   onChange: (blocks: any[]) => void;
   repoOwner: string;
   repoName: string;
+  onPaywallTrigger?: (message?: string) => void;
 }
 
-export default function BlockNoteEditor({ initialContent, onChange, repoOwner, repoName }: BlockNoteEditorProps) {
+export default function BlockNoteEditor({ initialContent, onChange, repoOwner, repoName, onPaywallTrigger }: BlockNoteEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState('');
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
@@ -46,10 +47,18 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
 
       if (!response.ok) {
         let errorMsg = 'Failed to upload image';
+        let isPaywall = response.status === 402;
         try {
           const errData = await response.json();
-          errorMsg = errData.error || errorMsg;
+          errorMsg = errData.message || errData.msg || errData.error || errorMsg;
+          if (errData.error === 'PAYWALL_REQUIRED') {
+            isPaywall = true;
+          }
         } catch (_) {}
+
+        if (isPaywall && onPaywallTrigger) {
+          onPaywallTrigger(errorMsg);
+        }
         throw new Error(errorMsg);
       }
 
@@ -126,11 +135,13 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
           action,
           tone: action === 'tone' ? param : undefined,
           targetLanguage: action === 'translate' ? param : undefined,
+          repo_owner: repoOwner,
+          repo_name: repoName,
         }),
       });
 
       const data = await response.json();
-      if (data.success && data.result) {
+      if (response.ok && data.success && data.result) {
         // Restore the saved selection on the editor
         editor._tiptapEditor.view.dispatch(
           editor._tiptapEditor.state.tr.setSelection(savedSelection)
@@ -142,7 +153,11 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
         setAiMenuOpen(false);
         setSelectedText('');
       } else {
-        setAiError(data.error || 'Failed to perform AI assistance.');
+        const errorMsg = data.message || data.msg || data.error || 'Failed to perform AI assistance.';
+        if ((response.status === 402 || data.error === 'PAYWALL_REQUIRED') && onPaywallTrigger) {
+          onPaywallTrigger(errorMsg);
+        }
+        setAiError(errorMsg);
       }
     } catch (err: any) {
       setAiError(err.message || 'An error occurred.');
