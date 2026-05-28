@@ -118,13 +118,52 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      const repoPath = session.client_reference_id; // "owner/repo" passed from payment link
+      
+      // Resilient repository path retrieval
+      let repoPath = session.client_reference_id; // "owner/repo" passed from payment link
+
+      // Fallback 1: Try reading from checkout session metadata
+      if (!repoPath && session.metadata) {
+        repoPath = session.metadata.repo_path || session.metadata.client_reference_id || session.metadata.repo;
+      }
+
+      // Fallback 2: Try reading from custom fields if set up in the Stripe Dashboard
+      if (!repoPath && session.custom_fields) {
+        const repoField = session.custom_fields.find(
+          (f: any) => 
+            f.key === 'repository' || 
+            f.key === 'repo_path' || 
+            f.label?.custom?.toLowerCase().includes('repo') ||
+            f.label?.custom?.toLowerCase().includes('repository')
+        );
+        if (repoField?.text?.value) {
+          repoPath = repoField.text.value;
+        }
+      }
+
       const customerId = session.customer;
       const subscriptionId = session.subscription;
 
       if (!repoPath) {
-        console.warn('Skipping webhook: No client_reference_id found in Checkout Session.');
+        console.warn('Skipping webhook: No client_reference_id, metadata, or custom field repository path found in Checkout Session.');
         return new Response(JSON.stringify({ success: true, warning: 'Missing client_reference_id' }), { status: 200 });
+      }
+
+      // Decode the repository path safely (converting base64url back to raw string, with fallback for raw paths)
+      try {
+        if (repoPath && !repoPath.includes('/') && !repoPath.includes(' ')) {
+          let base64 = repoPath.replace(/-/g, '+').replace(/_/g, '/');
+          while (base64.length % 4) {
+            base64 += '=';
+          }
+          const decoded = atob(base64);
+          // Only use decoded value if it contains the expected repository owner/name separator "/"
+          if (decoded.includes('/')) {
+            repoPath = decoded;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to base64url decode repoPath, using raw value:', err);
       }
 
       // Upsert subscription into DB

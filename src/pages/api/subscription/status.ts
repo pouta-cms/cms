@@ -102,12 +102,20 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     let checkoutUrl = '';
+    // Encode repository path to base64url to satisfy Stripe's strict alphanumeric, dash, and underscore restriction (handling slashes, dots, etc.)
+    const encodeBase64Url = (str: string): string => {
+      return btoa(str)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    };
+    const safeRepoId = encodeBase64Url(repoPath.toLowerCase());
     try {
       const urlObj = new URL(stripePaymentLink);
-      urlObj.searchParams.set('client_reference_id', repoPath.toLowerCase());
+      urlObj.searchParams.set('client_reference_id', safeRepoId);
       checkoutUrl = urlObj.toString();
     } catch (_) {
-      checkoutUrl = `${stripePaymentLink}?client_reference_id=${encodeURIComponent(repoPath.toLowerCase())}`;
+      checkoutUrl = `${stripePaymentLink}?client_reference_id=${encodeURIComponent(safeRepoId)}`;
     }
     const portalUrl = stripePortalLink;
 
