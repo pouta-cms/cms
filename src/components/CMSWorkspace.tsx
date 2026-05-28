@@ -613,6 +613,7 @@ export default function CMSWorkspace() {
       return;
     }
 
+    const capturedDocId = docId; // Capture the current docId!
     setGeneratingHeadlines(true);
     setHeadlineSuggestions([]);
     setHeadlinesOpen(true);
@@ -629,6 +630,13 @@ export default function CMSWorkspace() {
       });
 
       const data = await response.json();
+      
+      // Abort silently if draft switched
+      if (docIdRef.current !== capturedDocId) {
+        console.warn('Abandoning AI headlines generation: Draft has switched.');
+        return;
+      }
+
       if (data.success && Array.isArray(data.headlines)) {
         setHeadlineSuggestions(data.headlines);
       } else {
@@ -636,10 +644,14 @@ export default function CMSWorkspace() {
         setHeadlinesOpen(false);
       }
     } catch (err: any) {
-      alert(err.message || 'An error occurred while generating headlines.');
-      setHeadlinesOpen(false);
+      if (docIdRef.current === capturedDocId) {
+        alert(err.message || 'An error occurred while generating headlines.');
+        setHeadlinesOpen(false);
+      }
     } finally {
-      setGeneratingHeadlines(false);
+      if (docIdRef.current === capturedDocId) {
+        setGeneratingHeadlines(false);
+      }
     }
   };
 
@@ -2269,6 +2281,17 @@ export default function CMSWorkspace() {
           margin-top: 8px;
           overflow: hidden;
           animation: fade-in-slide 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes fade-in-slide {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .headline-suggestions-header {

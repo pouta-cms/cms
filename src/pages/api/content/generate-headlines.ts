@@ -24,7 +24,15 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (err) {
+      return new Response(JSON.stringify({ success: false, error: 'Malformed JSON' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     const { content } = body;
 
     if (!content) {

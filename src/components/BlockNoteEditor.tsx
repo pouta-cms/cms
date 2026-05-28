@@ -108,6 +108,10 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
   // Call the Workers AI Assistant endpoint
   const handleAIAssist = async (action: string, param?: string) => {
     if (!selectedText) return;
+    
+    // Capture the ProseMirror selection/cursor state before awaiting fetch
+    const savedSelection = editor._tiptapEditor.state.selection;
+    
     setLoadingAI(true);
     setAiError('');
 
@@ -127,6 +131,12 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
 
       const data = await response.json();
       if (data.success && data.result) {
+        // Restore the saved selection on the editor
+        editor._tiptapEditor.view.dispatch(
+          editor._tiptapEditor.state.tr.setSelection(savedSelection)
+        );
+        editor._tiptapEditor.view.focus();
+
         // Replace the selection in BlockNote!
         editor.insertInlineContent(data.result);
         setAiMenuOpen(false);

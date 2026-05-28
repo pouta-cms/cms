@@ -187,7 +187,13 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Default fallback alt text if AI is unavailable or fails
     if (!altText) {
-      altText = file.name.split('.')[0].replace(/[-_]+/g, ' ').trim();
+      const lastDotIndex = file.name.lastIndexOf('.');
+      const baseName = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+      altText = baseName.replace(/[-_]+/g, ' ').trim();
+      
+      if (!altText) {
+        altText = file.name || 'uploaded image';
+      }
     }
 
     return new Response(
