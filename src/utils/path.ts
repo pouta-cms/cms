@@ -1,3 +1,15 @@
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+}
+
+function getDaysInMonth(year: number, month: number): number {
+  const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month === 2 && isLeapYear(year)) {
+    return 29;
+  }
+  return days[month - 1] || 0;
+}
+
 /**
  * Parses a date string into components (year, month, day) in a timezone-safe manner.
  * Returns null if the string is invalid or malformed.
@@ -8,20 +20,26 @@ function parseDateStringToComponents(dateStr: string | undefined): { year: strin
   // Timezone-safe matching for YYYY-MM-DD formats
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
-    return {
-      year: match[1],
-      month: match[2],
-      day: match[3],
-    };
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const d = parseInt(match[3], 10);
+    
+    if (m >= 1 && m <= 12 && d >= 1 && d <= getDaysInMonth(y, m)) {
+      return {
+        year: match[1],
+        month: match[2],
+        day: match[3],
+      };
+    }
   }
   
-  // Standard JS Date parsing fallback
+  // Standard JS Date parsing fallback using UTC-based getters for timezone independence
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) {
     return {
-      year: String(d.getFullYear()),
-      month: String(d.getMonth() + 1).padStart(2, '0'),
-      day: String(d.getDate()).padStart(2, '0'),
+      year: String(d.getUTCFullYear()),
+      month: String(d.getUTCMonth() + 1).padStart(2, '0'),
+      day: String(d.getUTCDate()).padStart(2, '0'),
     };
   }
   
