@@ -68,6 +68,9 @@ export default function CMSWorkspace() {
   const [publishError, setPublishError] = useState('');
   const [uploadingFields, setUploadingFields] = useState<Set<string>>(new Set());
   const [generatingFields, setGeneratingFields] = useState<Record<string, boolean>>({});
+  const [generatingHeadlines, setGeneratingHeadlines] = useState(false);
+  const [headlineSuggestions, setHeadlineSuggestions] = useState<string[]>([]);
+  const [headlinesOpen, setHeadlinesOpen] = useState(false);
 
   // Responsive mobile sidebar drawer state
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -584,6 +587,62 @@ export default function CMSWorkspace() {
     }
   };
 
+  // Generate SEO headlines using Cloudflare Workers GenAI
+  const handleGenerateHeadlines = async () => {
+    const getText = (contentArr: any[]): string => {
+      if (!contentArr || !Array.isArray(contentArr)) return '';
+      return contentArr.map(item => item.text || '').join('');
+    };
+    
+    const blocksToPlainText = (items: any[]): string => {
+      if (!items || !Array.isArray(items)) return '';
+      return items.map(item => {
+        const textVal = getText(item.content);
+        let md = textVal;
+        if (item.children && Array.isArray(item.children)) {
+          md += '\n' + blocksToPlainText(item.children);
+        }
+        return md;
+      }).join('\n');
+    };
+
+    const textContent = blocksToPlainText(blocks).trim();
+
+    if (!textContent) {
+      alert('Cannot generate headlines: The document body has no text content.');
+      return;
+    }
+
+    setGeneratingHeadlines(true);
+    setHeadlineSuggestions([]);
+    setHeadlinesOpen(true);
+
+    try {
+      const response = await fetch('/api/content/generate-headlines', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: textContent,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && Array.isArray(data.headlines)) {
+        setHeadlineSuggestions(data.headlines);
+      } else {
+        alert(data.error || 'Failed to automatically generate headlines.');
+        setHeadlinesOpen(false);
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred while generating headlines.');
+      setHeadlinesOpen(false);
+    } finally {
+      setGeneratingHeadlines(false);
+    }
+  };
+
   // Handle R2 image uploads for declarative settings fields
   const handleMetadataImageUpload = async (fieldName: string, file: File) => {
     if (!file) return;
@@ -620,6 +679,14 @@ export default function CMSWorkspace() {
       }
 
       handleMetadataChange(fieldName, data.url);
+
+      // Auto-fill companion alt-text / caption fields in frontmatter metadata if they exist
+      const possibleAltNames = [`${fieldName}_alt`, `${fieldName}_caption`, 'alt', 'caption', 'image_alt', `${fieldName}Alt`];
+      const fields = activeConfig?.contentTypes?.find((c: any) => c.type === activeType)?.fields || [];
+      const altField = fields.find((f: any) => possibleAltNames.includes(f.name));
+      if (altField && data.altText) {
+        handleMetadataChange(altField.name, data.altText);
+      }
     } catch (err: any) {
       console.error('Error uploading metadata image:', err);
       alert(`Upload failed: ${err.message}`);
@@ -1040,7 +1107,7 @@ export default function CMSWorkspace() {
 
           {/* Column 2: Visual BlockNote Canvas (Center) */}
           <section className="canvas-pane">
-            <div className="canvas-header-input-wrapper">
+            <div className="canvas-header-input-wrapper relative">
               <input
                 type="text"
                 className="canvas-title-input"
@@ -1048,6 +1115,72 @@ export default function CMSWorkspace() {
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder="Enter document title..."
               />
+              
+              {/* ✨ AI Headline Suggestions Trigger */}
+              {docId && (
+                <div className="headline-ai-action-container">
+                  <button
+                    className={`btn-generate-headline-ai ${generatingHeadlines ? 'loading' : ''}`}
+                    onClick={handleGenerateHeadlines}
+                    title="Brainstorm titles with Workers GenAI"
+                    aria-label="Brainstorm titles with Workers GenAI"
+                  >
+                    {generatingHeadlines ? (
+                      <svg className="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.1)" />
+                        <path d="M12 2a10 10 0 0 1 10 10" />
+                      </svg>
+                    ) : (
+                      <>✨ <span className="btn-text-desktop">AI Headline</span></>
+                    )}
+                  </button>
+
+                  {/* Glassmorphic Suggestion Dropdown */}
+                  {headlinesOpen && (
+                    <div className="headline-suggestions-dropdown">
+                      <div className="headline-suggestions-header">
+                        <span className="headline-suggestions-header-title">✨ Headline Suggestions</span>
+                        <button
+                          className="btn-close-headlines"
+                          onClick={() => setHeadlinesOpen(false)}
+                          aria-label="Close suggestions"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="headline-suggestions-list">
+                        {generatingHeadlines ? (
+                          <div className="headline-ai-loader">
+                            <svg className="spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.1)" />
+                              <path d="M12 2a10 10 0 0 1 10 10" />
+                            </svg>
+                            <span>AI is brainstorming catchy headlines...</span>
+                          </div>
+                        ) : headlineSuggestions.length > 0 ? (
+                          headlineSuggestions.map((headline, idx) => (
+                            <button
+                              key={idx}
+                              className="headline-suggestion-item"
+                              onClick={() => {
+                                handleTitleChange(headline);
+                                setHeadlinesOpen(false);
+                              }}
+                            >
+                              <span className="headline-num-bullet">{idx + 1}</span>
+                              <span className="headline-text-content">{headline}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="headline-suggestions-empty">
+                            No headlines generated. Try adding more content to the draft first.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             <div className="canvas-editor-body">
@@ -2058,10 +2191,16 @@ export default function CMSWorkspace() {
           width: 100%;
           max-width: 800px;
           margin-bottom: 2rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          padding-bottom: 0.5rem;
         }
 
         .canvas-title-input {
-          width: 100%;
+          flex-grow: 1;
           background: transparent;
           border: none;
           color: white;
@@ -2070,8 +2209,180 @@ export default function CMSWorkspace() {
           letter-spacing: -0.03em;
           outline: none;
           padding: 0.5rem 0;
-          border-bottom: 2px solid transparent;
           transition: border-color 0.3s ease;
+        }
+
+        /* ✨ AI Headline Action Trigger Styles */
+        .headline-ai-action-container {
+          position: relative;
+        }
+
+        .btn-generate-headline-ai {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: linear-gradient(135deg, rgba(121, 40, 202, 0.2) 0%, rgba(255, 0, 128, 0.2) 100%);
+          border: 1px solid rgba(121, 40, 202, 0.5);
+          color: #f1f5f9;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 6px 12px;
+          border-radius: 9999px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 0 10px rgba(121, 40, 202, 0.1);
+        }
+
+        .btn-generate-headline-ai:hover:not(.loading) {
+          border-color: rgba(255, 0, 128, 0.8);
+          background: linear-gradient(135deg, rgba(121, 40, 202, 0.4) 0%, rgba(255, 0, 128, 0.4) 100%);
+          box-shadow: 0 0 15px rgba(255, 0, 128, 0.4);
+          transform: translateY(-1px);
+        }
+
+        .btn-generate-headline-ai.loading {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+          .btn-text-desktop {
+            display: none;
+          }
+        }
+
+        /* Headline suggestions glass dropdown */
+        .headline-suggestions-dropdown {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          width: 380px;
+          background: rgba(15, 17, 26, 0.95);
+          border: 1px solid rgba(121, 40, 202, 0.3);
+          border-radius: 12px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(16px);
+          z-index: 99;
+          margin-top: 8px;
+          overflow: hidden;
+          animation: fade-in-slide 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .headline-suggestions-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 14px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          background: rgba(121, 40, 202, 0.05);
+        }
+
+        .headline-suggestions-header-title {
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: #f1f5f9;
+        }
+
+        .btn-close-headlines {
+          background: transparent;
+          border: none;
+          color: #64748b;
+          font-size: 18px;
+          cursor: pointer;
+          line-height: 1;
+          transition: color 0.2s ease;
+        }
+
+        .btn-close-headlines:hover {
+          color: #ef4444;
+        }
+
+        .headline-suggestions-list {
+          padding: 8px;
+          max-height: 320px;
+          overflow-y: auto;
+        }
+
+        .headline-suggestion-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          width: 100%;
+          padding: 10px 12px;
+          background: transparent;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+          color: #cbd5e1;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 12.5px;
+          font-weight: 500;
+          line-height: 1.4;
+          margin-bottom: 4px;
+        }
+
+        .headline-suggestion-item:last-child {
+          margin-bottom: 0;
+        }
+
+        .headline-suggestion-item:hover {
+          background: rgba(121, 40, 202, 0.15);
+          color: #ffffff;
+          padding-left: 16px;
+        }
+
+        .headline-num-bullet {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          background: rgba(255, 0, 128, 0.15);
+          border: 1px solid rgba(255, 0, 128, 0.4);
+          color: #ff0080;
+          font-size: 10px;
+          font-weight: 700;
+          border-radius: 99px;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
+        .headline-suggestion-item:hover .headline-num-bullet {
+          background: #ff0080;
+          color: #ffffff;
+        }
+
+        .headline-text-content {
+          flex-grow: 1;
+        }
+
+        .headline-suggestions-empty {
+          color: #64748b;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11px;
+          text-align: center;
+          padding: 20px;
+        }
+
+        .headline-ai-loader {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 24px;
+          color: #94a3b8;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11px;
+          font-weight: 500;
         }
 
         .canvas-title-input:focus {

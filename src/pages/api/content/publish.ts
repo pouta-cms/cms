@@ -85,8 +85,8 @@ function blockToMarkdown(block: any): string {
     }
     case 'image': {
       const url = block.props?.url || '';
-      const caption = block.props?.caption || 'Image';
-      md += `![${caption}](${url})\n\n`;
+      const altText = block.props?.name || block.props?.caption || 'Image';
+      md += `![${altText}](${url})\n\n`;
       break;
     }
     default: {
