@@ -6,7 +6,13 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
+    const sessionSecret = env.SESSION_SECRET;
+    if (!sessionSecret) {
+      return new Response(JSON.stringify({ success: false, error: 'Internal server error: SESSION_SECRET is not configured.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // 1. Verify stateless session cookie
     try {
@@ -88,6 +94,49 @@ export const POST: APIRoute = async ({ request }) => {
       .split(',')
       .map((s: string) => s.trim().toLowerCase())
       .filter((s: string) => s.length > 0 && !s.includes(':') && !s.includes('\n') && !s.includes('#'));
+
+    // Validate generated categories contract
+    if (categories.length < 1 || categories.length > 5) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `AI generated an invalid number of categories (${categories.length}). Expected between 1 and 5.`
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    for (const cat of categories) {
+      if (cat.length === 0 || cat.length > 50) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `AI suggested a category tag that exceeds length constraints: "${cat}"`
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      
+      const wordCount = cat.split(/\s+/).filter(Boolean).length;
+      if (wordCount > 4) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `AI suggested a category tag with too many words: "${cat}"`
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    }
 
     return new Response(
       JSON.stringify({

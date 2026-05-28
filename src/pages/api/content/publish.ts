@@ -319,7 +319,7 @@ export const POST: APIRoute = async ({ request }) => {
       if ((field.type === 'slug' || field.name === 'slug') && (value === undefined || value === null || value === '')) {
         value = doc.slug;
       }
-      if (field.type === 'slug' && value) {
+      if ((field.type === 'slug' || field.name === 'slug') && value) {
         value = String(value).toLowerCase().replace(/\s+/g, '-');
       }
       if (field.type === 'number') {

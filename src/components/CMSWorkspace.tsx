@@ -475,6 +475,7 @@ export default function CMSWorkspace() {
       return;
     }
 
+    const capturedDocId = docId;
     setGeneratingFields(prev => ({ ...prev, [fieldName]: true }));
 
     try {
@@ -491,6 +492,10 @@ export default function CMSWorkspace() {
 
       const data = await response.json();
       if (data.success && data.description) {
+        if (docIdRef.current !== capturedDocId) {
+          console.warn('Abandoning AI description generation: Draft has switched.');
+          return;
+        }
         handleMetadataChange(fieldName, data.description);
       } else {
         alert(data.error || 'Failed to automatically generate description.');
@@ -528,6 +533,7 @@ export default function CMSWorkspace() {
       return;
     }
 
+    const capturedDocId = docId;
     setGeneratingFields(prev => ({ ...prev, [fieldName]: true }));
 
     try {
@@ -544,21 +550,30 @@ export default function CMSWorkspace() {
 
       const data = await response.json();
       if (data.success && Array.isArray(data.categories)) {
-        const currentVal = metadata[fieldName];
-        const currentArray = Array.isArray(currentVal)
-          ? currentVal
-          : typeof currentVal === 'string'
-          ? currentVal.split(',').map((s: string) => s.trim()).filter(Boolean)
-          : [];
-        
-        const mergedArray = [...currentArray];
-        data.categories.forEach((cat: string) => {
-          if (!mergedArray.includes(cat)) {
-            mergedArray.push(cat);
-          }
+        if (docIdRef.current !== capturedDocId) {
+          console.warn('Abandoning AI categories generation: Draft has switched.');
+          return;
+        }
+        setMetadata(prev => {
+          const currentVal = prev[fieldName];
+          const currentArray = Array.isArray(currentVal)
+            ? currentVal
+            : typeof currentVal === 'string'
+            ? currentVal.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [];
+          
+          const mergedArray = [...currentArray];
+          data.categories.forEach((cat: string) => {
+            if (!mergedArray.includes(cat)) {
+              mergedArray.push(cat);
+            }
+          });
+          
+          return {
+            ...prev,
+            [fieldName]: mergedArray
+          };
         });
-        
-        handleMetadataChange(fieldName, mergedArray);
       } else {
         alert(data.error || 'Failed to automatically generate categories.');
       }

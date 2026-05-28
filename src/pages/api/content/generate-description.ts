@@ -6,7 +6,13 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
+    const sessionSecret = env.SESSION_SECRET;
+    if (!sessionSecret) {
+      return new Response(JSON.stringify({ success: false, error: 'Internal server error: SESSION_SECRET is not configured.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // 1. Verify stateless session cookie
     try {
@@ -82,6 +88,20 @@ export const POST: APIRoute = async ({ request }) => {
     }
     if (cleaned.startsWith("'") && cleaned.endsWith("'")) {
       cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+    }
+
+    // Validate generated description contract
+    if (!cleaned || cleaned.length < 120 || cleaned.length > 160) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `AI generated description length (${cleaned.length} chars) is outside the required 120-160 character range.`
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     return new Response(
