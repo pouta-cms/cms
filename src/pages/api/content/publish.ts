@@ -293,10 +293,46 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Replace {slug} token in writePath
-    const resolvedPath = typeConfig.writePath.replace('{slug}', doc.slug);
+    // 6. Parse custom metadata properties
+    let metadata: Record<string, any> = {};
+    try {
+      metadata = JSON.parse(doc.metadata_json);
+    } catch (e) {
+      console.warn('Metadata JSON parsing failed, using empty object.');
+    }
 
-    // 6. Parse content blocks
+    // Replace {slug}, {year}, {month}, {day} tokens in writePath
+    let dateStr = '';
+    if (metadata && metadata.date) {
+      dateStr = String(metadata.date);
+    } else if (doc.created_at) {
+      dateStr = String(doc.created_at);
+    }
+
+    let year = '';
+    let month = '';
+    let day = '';
+
+    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      year = dateMatch[1];
+      month = dateMatch[2];
+      day = dateMatch[3];
+    } else {
+      const d = dateStr ? new Date(dateStr) : new Date();
+      const validDate = !isNaN(d.getTime()) ? d : new Date();
+      year = String(validDate.getFullYear());
+      month = String(validDate.getMonth() + 1).padStart(2, '0');
+      day = String(validDate.getDate()).padStart(2, '0');
+    }
+
+    const resolvedPath = typeConfig.writePath
+      .split('{slug}').join(doc.slug)
+      .split('{year}').join(year)
+      .split('{month}').join(month)
+      .split('{day}').join(day);
+
+    // 7. Parse content blocks
     let blocks = [];
     try {
       blocks = JSON.parse(doc.content_json);
@@ -308,14 +344,6 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const markdownBody = blocksToMarkdown(blocks);
-
-    // 7. Parse custom metadata properties and assemble dynamic YAML Frontmatter
-    let metadata: Record<string, any> = {};
-    try {
-      metadata = JSON.parse(doc.metadata_json);
-    } catch (e) {
-      console.warn('Metadata JSON parsing failed, using empty object.');
-    }
 
     // Escape frontmatter strings safely
     const escapeYaml = (val: any) => {

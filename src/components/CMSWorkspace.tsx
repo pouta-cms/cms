@@ -4,6 +4,46 @@ import BlockNoteEditor from './BlockNoteEditor';
 // Simple ID generator for documents
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
+// Helper to resolve writePath with {slug}, {year}, {month}, {day}
+const resolveWritePath = (
+  writePath: string | undefined,
+  slug: string,
+  metadata: Record<string, any>,
+  createdAt?: string
+): string => {
+  if (!writePath) return '';
+  
+  let dateStr = '';
+  if (metadata && metadata.date) {
+    dateStr = String(metadata.date);
+  } else if (createdAt) {
+    dateStr = String(createdAt);
+  }
+
+  let year = '';
+  let month = '';
+  let day = '';
+
+  const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateMatch) {
+    year = dateMatch[1];
+    month = dateMatch[2];
+    day = dateMatch[3];
+  } else {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    const validDate = !isNaN(d.getTime()) ? d : new Date();
+    year = String(validDate.getFullYear());
+    month = String(validDate.getMonth() + 1).padStart(2, '0');
+    day = String(validDate.getDate()).padStart(2, '0');
+  }
+
+  return writePath
+    .split('{slug}').join(slug)
+    .split('{year}').join(year)
+    .split('{month}').join(month)
+    .split('{day}').join(day);
+};
+
 interface UserProfile {
   authenticated: boolean;
   username?: string;
@@ -1614,7 +1654,7 @@ export default function CMSWorkspace() {
             <div className="publish-card">
               <div className="publish-card-header">Publish to GitHub App</div>
               <p className="publish-card-desc">
-                Pushes changes to `<strong>{selectedRepo}</strong>` branch `<strong>{selectedBranch}</strong>`. Path: `<strong>{activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath.replace('{slug}', slug)}</strong>`
+                Pushes changes to `<strong>{selectedRepo}</strong>` branch `<strong>{selectedBranch}</strong>`. Path: `<strong>{resolveWritePath(activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath, slug, metadata, drafts.find((d) => d.id === docId)?.created_at)}</strong>`
               </p>
               
               <button
