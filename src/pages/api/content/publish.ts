@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { verifySession, verifyCollaborator } from '../../../utils/auth';
 import { getInstallationAccessToken } from '../../../utils/githubApp';
+import { resolveWritePath } from '../../../utils/path';
 
 export const prerender = false;
 
@@ -293,10 +294,18 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Replace {slug} token in writePath
-    const resolvedPath = typeConfig.writePath.replace('{slug}', doc.slug);
+    // 6. Parse custom metadata properties
+    let metadata: Record<string, any> = {};
+    try {
+      metadata = JSON.parse(doc.metadata_json);
+    } catch (e) {
+      console.warn('Metadata JSON parsing failed, using empty object.');
+    }
 
-    // 6. Parse content blocks
+    // Replace {slug}, {year}, {month}, {day} tokens in writePath using the shared utility module
+    const resolvedPath = resolveWritePath(typeConfig.writePath, doc.slug, metadata, doc.created_at);
+
+    // 7. Parse content blocks
     let blocks = [];
     try {
       blocks = JSON.parse(doc.content_json);
@@ -308,14 +317,6 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const markdownBody = blocksToMarkdown(blocks);
-
-    // 7. Parse custom metadata properties and assemble dynamic YAML Frontmatter
-    let metadata: Record<string, any> = {};
-    try {
-      metadata = JSON.parse(doc.metadata_json);
-    } catch (e) {
-      console.warn('Metadata JSON parsing failed, using empty object.');
-    }
 
     // Escape frontmatter strings safely
     const escapeYaml = (val: any) => {

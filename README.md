@@ -157,6 +157,17 @@ Commit a `pouta.config.json` at the root of your target website repository. Pout
 }
 ```
 
+> [!NOTE]
+> **Dynamic Path Tokens**
+>
+> The `writePath` configuration supports the following dynamic tokens to structure your output files (highly compatible with Jekyll/Hugo formats):
+> - `{slug}`: The URL-friendly slug of the document.
+> - `{year}`: 4-digit creation or metadata year (e.g., `2026`).
+> - `{month}`: 2-digit creation or metadata month (e.g., `05`).
+> - `{day}`: 2-digit creation or metadata day (e.g., `28`).
+> 
+> Example: `"writePath": "collections/_posts/{year}-{month}-{day}-{slug}.md"`
+
 ### 4. Deploy and Write!
 Run local SQLite migrations and boot up the development server:
 ```bash

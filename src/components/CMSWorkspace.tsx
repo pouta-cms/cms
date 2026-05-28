@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import BlockNoteEditor from './BlockNoteEditor';
+import { resolveWritePath } from '../utils/path';
 
 // Simple ID generator for documents
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -1614,7 +1615,7 @@ export default function CMSWorkspace() {
             <div className="publish-card">
               <div className="publish-card-header">Publish to GitHub App</div>
               <p className="publish-card-desc">
-                Pushes changes to `<strong>{selectedRepo}</strong>` branch `<strong>{selectedBranch}</strong>`. Path: `<strong>{activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath.replace('{slug}', slug)}</strong>`
+                Pushes changes to `<strong>{selectedRepo}</strong>` branch `<strong>{selectedBranch}</strong>`. Path: `<strong>{resolveWritePath(activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath, slug, metadata, drafts.find((d) => d.id === docId)?.created_at)}</strong>`
               </p>
               
               <button
