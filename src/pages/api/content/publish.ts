@@ -310,13 +310,18 @@ export const POST: APIRoute = async ({ request }) => {
     let frontmatterRows = [
       `id: "${doc.id}"`,
       `type: "${doc.type}"`,
-      `slug: "${doc.slug}"`,
       `title: "${escapeYaml(doc.title)}"`,
     ];
 
     // dynamically loop over user-configured fields
     typeConfig.fields.forEach((field: any) => {
-      const value = metadata[field.name];
+      let value = metadata[field.name];
+      if ((field.type === 'slug' || field.name === 'slug') && (value === undefined || value === null || value === '')) {
+        value = doc.slug;
+      }
+      if ((field.type === 'slug' || field.name === 'slug') && value) {
+        value = String(value).toLowerCase().replace(/\s+/g, '-');
+      }
       if (field.type === 'number') {
         frontmatterRows.push(`${field.name}: ${Number(value) || 0}`);
       } else if (field.type === 'list' || field.type === 'array' || field.type === 'tags') {

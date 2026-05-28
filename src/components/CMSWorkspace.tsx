@@ -67,6 +67,7 @@ export default function CMSWorkspace() {
   const [publishStatus, setPublishStatus] = useState<'Idle' | 'Publishing...' | 'Published!' | 'Error'>('Idle');
   const [publishError, setPublishError] = useState('');
   const [uploadingFields, setUploadingFields] = useState<Set<string>>(new Set());
+  const [generatingFields, setGeneratingFields] = useState<Record<string, boolean>>({});
 
   // Responsive mobile sidebar drawer state
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -416,6 +417,28 @@ export default function CMSWorkspace() {
       .replace(/[\s_]+/g, '-')
       .replace(/^-+|-+$/g, '');
     setSlug(generated);
+
+    // Also auto-generate any metadata fields of type 'slug'
+    const slugFields = activeFields.filter((f: any) => f.type === 'slug');
+    if (slugFields.length > 0) {
+      setMetadata(prev => {
+        const nextMeta = { ...prev };
+        slugFields.forEach((field: any) => {
+          const oldGenerated = title
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          
+          const currentValue = nextMeta[field.name];
+          if (!currentValue || currentValue === oldGenerated) {
+            nextMeta[field.name] = generated;
+          }
+        });
+        return nextMeta;
+      });
+    }
   };
 
   // Handle dynamic form inputs
@@ -424,6 +447,141 @@ export default function CMSWorkspace() {
       ...prev,
       [key]: value
     }));
+  };
+
+  // Generate description using Cloudflare Workers GenAI
+  const handleGenerateDescription = async (fieldName: string) => {
+    const getText = (contentArr: any[]): string => {
+      if (!contentArr || !Array.isArray(contentArr)) return '';
+      return contentArr.map(item => item.text || '').join('');
+    };
+    
+    const blocksToPlainText = (items: any[]): string => {
+      if (!items || !Array.isArray(items)) return '';
+      return items.map(item => {
+        const textVal = getText(item.content);
+        let md = textVal;
+        if (item.children && Array.isArray(item.children)) {
+          md += '\n' + blocksToPlainText(item.children);
+        }
+        return md;
+      }).join('\n');
+    };
+
+    const textContent = blocksToPlainText(blocks).trim();
+
+    if (!textContent) {
+      alert('Cannot generate description: The document body has no text content.');
+      return;
+    }
+
+    const capturedDocId = docId;
+    setGeneratingFields(prev => ({ ...prev, [fieldName]: true }));
+
+    try {
+      const response = await fetch('/api/content/generate-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          content: textContent,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.description) {
+        if (docIdRef.current !== capturedDocId) {
+          console.warn('Abandoning AI description generation: Draft has switched.');
+          return;
+        }
+        handleMetadataChange(fieldName, data.description);
+      } else {
+        alert(data.error || 'Failed to automatically generate description.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred while generating the description.');
+    } finally {
+      setGeneratingFields(prev => ({ ...prev, [fieldName]: false }));
+    }
+  };
+
+  // Generate categories using Cloudflare Workers GenAI
+  const handleGenerateCategories = async (fieldName: string) => {
+    const getText = (contentArr: any[]): string => {
+      if (!contentArr || !Array.isArray(contentArr)) return '';
+      return contentArr.map(item => item.text || '').join('');
+    };
+    
+    const blocksToPlainText = (items: any[]): string => {
+      if (!items || !Array.isArray(items)) return '';
+      return items.map(item => {
+        const textVal = getText(item.content);
+        let md = textVal;
+        if (item.children && Array.isArray(item.children)) {
+          md += '\n' + blocksToPlainText(item.children);
+        }
+        return md;
+      }).join('\n');
+    };
+
+    const textContent = blocksToPlainText(blocks).trim();
+
+    if (!textContent) {
+      alert('Cannot generate categories: The document body has no text content.');
+      return;
+    }
+
+    const capturedDocId = docId;
+    setGeneratingFields(prev => ({ ...prev, [fieldName]: true }));
+
+    try {
+      const response = await fetch('/api/content/generate-categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          content: textContent,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && Array.isArray(data.categories)) {
+        if (docIdRef.current !== capturedDocId) {
+          console.warn('Abandoning AI categories generation: Draft has switched.');
+          return;
+        }
+        setMetadata(prev => {
+          const currentVal = prev[fieldName];
+          const currentArray = Array.isArray(currentVal)
+            ? currentVal
+            : typeof currentVal === 'string'
+            ? currentVal.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [];
+          
+          const mergedArray = [...currentArray];
+          data.categories.forEach((cat: string) => {
+            if (!mergedArray.includes(cat)) {
+              mergedArray.push(cat);
+            }
+          });
+          
+          return {
+            ...prev,
+            [fieldName]: mergedArray
+          };
+        });
+      } else {
+        alert(data.error || 'Failed to automatically generate categories.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred while generating categories.');
+    } finally {
+      setGeneratingFields(prev => ({ ...prev, [fieldName]: false }));
+    }
   };
 
   // Handle R2 image uploads for declarative settings fields
@@ -775,8 +933,9 @@ export default function CMSWorkspace() {
         { "name": "author", "label": "Author", "type": "select", "options": ["moha", "other-author"] },
         { "name": "categories", "label": "Categories", "type": "list" },
         { "name": "featured_image_url", "label": "Featured Image", "type": "image" },
+        { "name": "slug", "label": "SEO Slug (Optional)", "type": "slug" },
         { "name": "seo_title", "label": "SEO Title", "type": "text" },
-        { "name": "seo_description", "label": "SEO Description", "type": "textarea" }
+        { "name": "seo_description", "label": "SEO Description", "type": "description" }
       ]
     }
   ]
@@ -968,6 +1127,16 @@ export default function CMSWorkspace() {
                     />
                   )}
 
+                  {field.type === 'slug' && (
+                    <input
+                      type="text"
+                      className="sidebar-input"
+                      value={fieldValue}
+                      onChange={(e) => handleMetadataChange(field.name, e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                    />
+                  )}
+
                   {field.type === 'textarea' && (
                     <textarea
                       className="sidebar-textarea"
@@ -976,6 +1145,32 @@ export default function CMSWorkspace() {
                       placeholder={`Enter ${field.label.toLowerCase()}...`}
                       rows={3}
                     />
+                  )}
+
+                  {field.type === 'description' && (
+                    <div className="description-ai-wrapper">
+                      <textarea
+                        className="sidebar-textarea description-textarea"
+                        value={fieldValue}
+                        onChange={(e) => handleMetadataChange(field.name, e.target.value)}
+                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                        rows={3}
+                      />
+                      <button
+                        type="button"
+                        className="btn-ai-generate"
+                        disabled={generatingFields[field.name]}
+                        onClick={() => handleGenerateDescription(field.name)}
+                      >
+                        {generatingFields[field.name] ? (
+                          <>
+                            <span className="spinner-mini" /> Generating...
+                          </>
+                        ) : (
+                          <>✨ Auto-Generate with GenAI</>
+                        )}
+                      </button>
+                    </div>
                   )}
 
                   {field.type === 'number' && (
@@ -1145,6 +1340,23 @@ export default function CMSWorkspace() {
                           }
                         }}
                       />
+                      <button
+                        type="button"
+                        className="btn-ai-generate btn-list-ai-generate"
+                        style={{ marginTop: '0.5rem', width: '100%' }}
+                        disabled={generatingFields[field.name]}
+                        onClick={() => handleGenerateCategories(field.name)}
+                      >
+                        {generatingFields[field.name] ? (
+                          <>
+                            <span className="spinner-mini" /> Generating...
+                          </>
+                        ) : (
+                          <>
+                            ✨ Auto-Suggest {field.name.toLowerCase().includes('category') ? 'Categories' : 'Tags'}
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2270,6 +2482,55 @@ export default function CMSWorkspace() {
           .canvas-pane {
             padding: 2rem 2rem;
           }
+        }
+
+        .description-ai-wrapper {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .btn-ai-generate {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          padding: 0.45rem 0.8rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+        }
+
+        .btn-ai-generate:hover:not(:disabled) {
+          background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+        }
+
+        .btn-ai-generate:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          background: #4b5563;
+          box-shadow: none;
+        }
+
+        .spinner-mini {
+          width: 12px;
+          height: 12px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin-mini 0.8s linear infinite;
+        }
+
+        @keyframes spin-mini {
+          to { transform: rotate(360deg); }
         }
 
         /* --------------------------------------------------

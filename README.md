@@ -138,8 +138,9 @@ Commit a `pouta.config.json` at the root of your target website repository. Pout
         { "name": "author", "label": "Author", "type": "select", "options": ["moha", "other-author"] },
         { "name": "categories", "label": "Categories", "type": "list" },
         { "name": "featured_image_url", "label": "Featured Image", "type": "image" },
+        { "name": "slug", "label": "SEO Slug (Optional)", "type": "slug" },
         { "name": "seo_title", "label": "SEO Title", "type": "text" },
-        { "name": "seo_description", "label": "SEO Description", "type": "textarea" }
+        { "name": "seo_description", "label": "SEO Description", "type": "description" }
       ]
     }
   ]
