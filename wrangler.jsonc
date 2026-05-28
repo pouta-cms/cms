@@ -22,6 +22,9 @@
 			"binding": "MEDIA_BUCKET",
 			"bucket_name": "pouta-media"
 		}
-	]
+	],
+	"ai": {
+		"binding": "AI"
+	}
 }
 
