@@ -43,6 +43,13 @@ export default function CMSWorkspace() {
   const [githubInstallationId, setGithubInstallationId] = useState<string>('');
   const [loadingRepos, setLoadingRepos] = useState(false);
 
+  // Stripe billing/paywall states
+  const [subscriptionActive, setSubscriptionActive] = useState<boolean>(true);
+  const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState<string>('');
+  const [stripePortalUrl, setStripePortalUrl] = useState<string>('');
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState<boolean>(false);
+  const [checkingSubscription, setCheckingSubscription] = useState<boolean>(false);
+
   // Dynamic config loaded directly from GitHub repo
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -163,6 +170,42 @@ export default function CMSWorkspace() {
     // Clear the active document loader until new workspace assets load
     setDocId('');
     setActiveConfig(null);
+  };
+
+  // Fetch repository billing/paywall status when switching workspace
+  useEffect(() => {
+    if (!selectedRepo) return;
+
+    const checkWorkspaceSubscription = async () => {
+      setCheckingSubscription(true);
+      try {
+        const response = await fetch(`/api/subscription/status?repo=${encodeURIComponent(selectedRepo)}`);
+        const data = await response.json();
+        if (data.success) {
+          setSubscriptionActive(data.active);
+          setStripeCheckoutUrl(data.checkoutUrl);
+          setStripePortalUrl(data.portalUrl || '');
+        } else {
+          setSubscriptionActive(true); // Fail-open locally to avoid lockouts
+        }
+      } catch (err) {
+        console.error('Failed to retrieve workspace billing details:', err);
+        setSubscriptionActive(true);
+      } finally {
+        setCheckingSubscription(false);
+      }
+    };
+
+    checkWorkspaceSubscription();
+  }, [selectedRepo]);
+
+  // Handle redirect to static Stripe-hosted Customer Portal
+  const handleBillingPortalRedirect = () => {
+    if (stripePortalUrl) {
+      window.open(stripePortalUrl, '_blank');
+    } else {
+      alert('Billing portal is not configured in environment.');
+    }
   };
 
   // Dynamic GitOps Schema Loader: Fetch pouta.config.json from target repository root
@@ -478,6 +521,7 @@ export default function CMSWorkspace() {
       return;
     }
 
+    const [owner, name] = selectedRepo ? selectedRepo.split('/') : ['', ''];
     const capturedDocId = docId;
     setGeneratingFields(prev => ({ ...prev, [fieldName]: true }));
 
@@ -490,11 +534,18 @@ export default function CMSWorkspace() {
         body: JSON.stringify({
           title,
           content: textContent,
+          repo_owner: owner,
+          repo_name: name,
         }),
       });
 
       const data = await response.json();
-      if (data.success && data.description) {
+      if (response.status === 402 || data.error === 'PAYWALL_REQUIRED') {
+        setIsUpgradeModalOpen(true);
+        return;
+      }
+
+      if (response.ok && data.success && data.description) {
         if (docIdRef.current !== capturedDocId) {
           console.warn('Abandoning AI description generation: Draft has switched.');
           return;
@@ -536,6 +587,7 @@ export default function CMSWorkspace() {
       return;
     }
 
+    const [owner, name] = selectedRepo ? selectedRepo.split('/') : ['', ''];
     const capturedDocId = docId;
     setGeneratingFields(prev => ({ ...prev, [fieldName]: true }));
 
@@ -548,35 +600,23 @@ export default function CMSWorkspace() {
         body: JSON.stringify({
           title,
           content: textContent,
+          repo_owner: owner,
+          repo_name: name,
         }),
       });
 
       const data = await response.json();
-      if (data.success && Array.isArray(data.categories)) {
+      if (response.status === 402 || data.error === 'PAYWALL_REQUIRED') {
+        setIsUpgradeModalOpen(true);
+        return;
+      }
+
+      if (response.ok && data.success && Array.isArray(data.categories)) {
         if (docIdRef.current !== capturedDocId) {
           console.warn('Abandoning AI categories generation: Draft has switched.');
           return;
         }
-        setMetadata(prev => {
-          const currentVal = prev[fieldName];
-          const currentArray = Array.isArray(currentVal)
-            ? currentVal
-            : typeof currentVal === 'string'
-            ? currentVal.split(',').map((s: string) => s.trim()).filter(Boolean)
-            : [];
-          
-          const mergedArray = [...currentArray];
-          data.categories.forEach((cat: string) => {
-            if (!mergedArray.includes(cat)) {
-              mergedArray.push(cat);
-            }
-          });
-          
-          return {
-            ...prev,
-            [fieldName]: mergedArray
-          };
-        });
+        handleMetadataChange(fieldName, data.categories.join(', '));
       } else {
         alert(data.error || 'Failed to automatically generate categories.');
       }
@@ -613,7 +653,8 @@ export default function CMSWorkspace() {
       return;
     }
 
-    const capturedDocId = docId; // Capture the current docId!
+    const [owner, name] = selectedRepo ? selectedRepo.split('/') : ['', ''];
+    const capturedDocId = docId;
     setGeneratingHeadlines(true);
     setHeadlineSuggestions([]);
     setHeadlinesOpen(true);
@@ -626,10 +667,18 @@ export default function CMSWorkspace() {
         },
         body: JSON.stringify({
           content: textContent,
+          repo_owner: owner,
+          repo_name: name,
         }),
       });
 
       const data = await response.json();
+      
+      if (response.status === 402 || data.error === 'PAYWALL_REQUIRED') {
+        setHeadlinesOpen(false);
+        setIsUpgradeModalOpen(true);
+        return;
+      }
       
       // Abort silently if draft switched
       if (docIdRef.current !== capturedDocId) {
@@ -637,10 +686,10 @@ export default function CMSWorkspace() {
         return;
       }
 
-      if (data.success && Array.isArray(data.headlines)) {
+      if (response.ok && data.success && Array.isArray(data.headlines)) {
         setHeadlineSuggestions(data.headlines);
       } else {
-        alert(data.error || 'Failed to automatically generate headlines.');
+        alert(data.error || 'Failed to suggest headline recommendations.');
         setHeadlinesOpen(false);
       }
     } catch (err: any) {
@@ -678,10 +727,19 @@ export default function CMSWorkspace() {
 
       if (!response.ok) {
         let errorMsg = 'Failed to upload image';
+        let isPaywall = response.status === 402;
         try {
           const errData = await response.json();
           errorMsg = errData.error || errorMsg;
+          if (errData.error === 'PAYWALL_REQUIRED') {
+            isPaywall = true;
+          }
         } catch (_) {}
+
+        if (isPaywall) {
+          setIsUpgradeModalOpen(true);
+          return;
+        }
         throw new Error(errorMsg);
       }
 
@@ -899,6 +957,25 @@ export default function CMSWorkspace() {
                 </option>
               ))}
             </select>
+          )}
+
+          {/* Subscription Status Pill */}
+          {selectedRepo && !checkingSubscription && (
+            <span className={`billing-status-pill ${subscriptionActive ? 'active' : 'free'}`}>
+              {subscriptionActive ? (
+                <button 
+                  className="billing-portal-trigger" 
+                  onClick={handleBillingPortalRedirect} 
+                  title="Manage Subscription, Cards & Invoices"
+                >
+                  👑 Pro
+                </button>
+              ) : (
+                <button className="billing-upgrade-trigger" onClick={() => setIsUpgradeModalOpen(true)}>
+                  ⚡ Upgrade
+                </button>
+              )}
+            </span>
           )}
           <a
             href="https://github.com/apps/pouta-cms/installations/new"
@@ -1206,6 +1283,7 @@ export default function CMSWorkspace() {
                       onChange={(newBlocks) => setBlocks(newBlocks)}
                       repoOwner={owner}
                       repoName={name}
+                      onPaywallTrigger={() => setIsUpgradeModalOpen(true)}
                     />
                   );
                 })()
@@ -1561,8 +1639,273 @@ export default function CMSWorkspace() {
         </div>
       )}
 
+      {/* Premium Glassmorphic Upgrade Modal Overlay */}
+      {isUpgradeModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsUpgradeModalOpen(false)}>
+          <div className="upgrade-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="upgrade-icon-wrapper">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>
+                <line x1="12" y1="2" x2="12" y2="22"/>
+                <line x1="12" y1="12" x2="22" y2="8.5"/>
+                <line x1="12" y1="12" x2="2" y2="8.5"/>
+              </svg>
+            </div>
+            <h3 className="upgrade-title">Upgrade Workspace</h3>
+            <p className="upgrade-description">
+              Unleash the full potential of Pouta CMS. Unlock AI-powered writing assistants and zero-egress Cloudflare R2 media storage for: <br /><strong style={{color: '#ffffff'}}>{selectedRepo}</strong>
+            </p>
+            <div className="upgrade-features-list">
+              <div className="upgrade-feature-item">
+                <svg className="upgrade-feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span>🚀 Unlimited Cloudflare R2 image storage</span>
+              </div>
+              <div className="upgrade-feature-item">
+                <svg className="upgrade-feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span>🪄 AI Copyediting, Summarizing & Translating</span>
+              </div>
+              <div className="upgrade-feature-item">
+                <svg className="upgrade-feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span>🏷️ Automatic accessibility alt-text generation</span>
+              </div>
+            </div>
+            <div className="upgrade-actions">
+              <a href={stripeCheckoutUrl} target="_blank" rel="noopener noreferrer" className="btn-upgrade-now">
+                Upgrade Workspace Now
+              </a>
+              <button className="btn-upgrade-cancel" onClick={() => setIsUpgradeModalOpen(false)}>
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Styled JSX for Premium UI Aesthetics */}
       <style>{`
+        /* Subscription Plan Status Pill */
+        .billing-status-pill {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          margin-left: 8px;
+        }
+
+        .billing-status-pill.active {
+          background: rgba(16, 185, 129, 0.12);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #10b981;
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+        }
+
+        .billing-status-pill.free {
+          background: rgba(245, 158, 11, 0.08);
+          border: 1px solid rgba(245, 158, 11, 0.2);
+          color: #f59e0b;
+        }
+
+        .billing-portal-trigger {
+          background: none;
+          border: none;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          padding: 0;
+          outline: none;
+        }
+
+        .billing-portal-trigger:hover {
+          color: #ffffff;
+          text-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+        }
+
+        .billing-upgrade-trigger {
+          background: none;
+          border: none;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          padding: 0;
+          outline: none;
+        }
+
+        .billing-upgrade-trigger:hover {
+          color: #ffffff;
+          text-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+        }
+
+        /* Glassmorphic Upgrade Modal Overlay */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(4, 5, 8, 0.85);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 99999;
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .upgrade-modal {
+          background: rgba(18, 22, 31, 0.75);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 20px;
+          padding: 40px;
+          max-width: 480px;
+          width: 90%;
+          text-align: center;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(245, 158, 11, 0.08);
+          position: relative;
+          overflow: hidden;
+          font-family: 'Outfit', sans-serif;
+          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .upgrade-modal::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(234, 88, 12, 0.08) 0%, transparent 60%);
+          pointer-events: none;
+        }
+
+        .upgrade-icon-wrapper {
+          width: 72px;
+          height: 72px;
+          background: linear-gradient(135deg, rgba(234, 88, 12, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 24px;
+          color: #f59e0b;
+          box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+        }
+
+        .upgrade-title {
+          font-size: 26px;
+          font-weight: 700;
+          margin-bottom: 12px;
+          color: #ffffff;
+          letter-spacing: -0.02em;
+        }
+
+        .upgrade-description {
+          font-size: 15px;
+          color: #8b9bb4;
+          line-height: 1.6;
+          margin-bottom: 30px;
+        }
+
+        .upgrade-features-list {
+          text-align: left;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 12px;
+          padding: 16px 20px;
+          margin-bottom: 32px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .upgrade-feature-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13.5px;
+          color: #f3f4f6;
+        }
+
+        .upgrade-feature-icon {
+          color: #10b981;
+          flex-shrink: 0;
+        }
+
+        .upgrade-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .btn-upgrade-now {
+          background: var(--accent-gradient);
+          color: #ffffff;
+          border: none;
+          padding: 14px 28px;
+          border-radius: 10px;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: var(--accent-glow);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          text-decoration: none;
+        }
+
+        .btn-upgrade-now:hover {
+          transform: translateY(-2px);
+          filter: brightness(1.1);
+        }
+
+        .btn-upgrade-cancel {
+          background: transparent;
+          color: #8b9bb4;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 12px 28px;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-upgrade-cancel:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: #ffffff;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+          from { transform: translateY(30px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+
         /* Core Dark Styling and Typography */
         :root {
           --bg-dark: #0a0c10;

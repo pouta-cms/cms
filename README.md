@@ -94,13 +94,18 @@ To ensure high security, sensitive credentials and secrets must **never** be com
    ```
 2. Open `.dev.vars` and add your actual GitHub credentials, session secret, and R2 public URL prefix:
    ```env
-   GITHUB_APP_ID="1002345"
-   GITHUB_CLIENT_ID="Iv1.xxxxxxxxx"
-   GITHUB_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-   GITHUB_APP_PRIVATE_KEY_B64="your_base64_encoded_private_key_pem_here"
-   SESSION_SECRET="your-dynamic-secret-passphrase-32-chars-minimum"
-   R2_PUBLIC_URL_PREFIX="https://media.yourdomain.com"
-   ```
+    GITHUB_APP_ID="1002345"
+    GITHUB_CLIENT_ID="Iv1.xxxxxxxxx"
+    GITHUB_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    GITHUB_APP_PRIVATE_KEY_B64="your_base64_encoded_private_key_pem_here"
+    SESSION_SECRET="your-dynamic-secret-passphrase-32-chars-minimum"
+    R2_PUBLIC_URL_PREFIX="https://media.yourdomain.com"
+    
+    # Stripe Billing Setup (Optional)
+    PAYWALL_ENABLED="false"
+    STRIPE_PAYMENT_LINK="https://buy.stripe.com/your_mock_payment_link"
+    STRIPE_WEBHOOK_SECRET="whsec_your_mock_webhook_secret_key"
+    ```
 
 #### B. For Production Deployments
 Add these keys under your project settings in the **Cloudflare Pages/Workers Dashboard > Settings > Environment Variables** (set them as encrypted Secrets where applicable):
@@ -110,6 +115,9 @@ Add these keys under your project settings in the **Cloudflare Pages/Workers Das
 *   `GITHUB_APP_PRIVATE_KEY_B64` (Secret)
 *   `SESSION_SECRET` (Secret)
 *   `R2_PUBLIC_URL_PREFIX` (The custom public domain mapped to your R2 bucket)
+*   `PAYWALL_ENABLED` (Optional, set to "true" to enable repository paywall locking)
+*   `STRIPE_PAYMENT_LINK` (Stripe Payment Link URL, e.g., `https://buy.stripe.com/...`)
+*   `STRIPE_WEBHOOK_SECRET` (Secret, Stripe webhook signature key `whsec_...`)
 *   **D1 Database Binding**: Bind your database directly in the Cloudflare Dashboard under your Pages Project > **Settings > Functions > D1 Database Bindings**. Bind the variable name `DB` to your production database. This is the recommended approach as it completely removes the need to supply or track the database UUID in `wrangler.jsonc` or CI/CD pipeline files.
 
 #### C. Cloudflare R2 Bucket Setup
@@ -180,6 +188,47 @@ For an in-depth understanding of the technical layout, cryptographic specificati
 *   **Edge-Native RS256 JWT Generation**: Details of RSA PKCS#8 signature algorithms and dynamic installation access token exchanges.
 *   **Multi-Tenant Isolation Gates**: Security specifications checking session validity, real-time collaborator checks, and SQLite scoped queries.
 *   **BlockNote JSON-to-Markdown Pipelines**: The complete recursive serialization logic converting visual canvas blocks to frontmatter-enriched GFM files.
+
+---
+
+## 💳 Stripe Paywall & Billing Setup (Optional)
+
+Pouta CMS features an optional, built-in Stripe paywall system that allows you to put metered edge features (Cloudflare R2 image storage and Workers AI assistants) behind a repository-scoped paywall. This paywall is controlled entirely by the `PAYWALL_ENABLED="true"` environment variable.
+
+### 1. Configure the Webhook Events
+In your **Stripe Dashboard > Developers > Webhooks** (or via the Stripe CLI), configure your endpoint to forward to `https://<your-cms-domain>/api/webhooks/stripe` listening to exactly these three events:
+*   **`checkout.session.completed`** (Triggers when a customer upgrades a repository).
+*   **`customer.subscription.updated`** (Triggers on plan renewal, updates, or status changes).
+*   **`customer.subscription.deleted`** (Triggers when a subscription is canceled or expires).
+
+### 2. Local Testing (Stripe CLI)
+To test billing and checkout flows locally:
+1.  **Install & Login** to the Stripe CLI:
+    ```bash
+    brew install stripe/stripe-cli/stripe
+    stripe login
+    ```
+2.  **Start Forwarding** events to your local dev server (default port `4321`):
+    ```bash
+    stripe listen --forward-to localhost:4321/api/webhooks/stripe
+    ```
+3.  **Configure Signature Verification**:
+    Copy the local signing secret (`whsec_...`) printed in your terminal and configure it in your `.dev.vars` file:
+    ```env
+    STRIPE_WEBHOOK_SECRET="whsec_your_local_secret"
+    ```
+4.  **Trigger a Mock Purchase**:
+    Run the checkout simulation command in a separate terminal window:
+    ```bash
+    stripe trigger checkout.session.completed
+    ```
+
+### 3. Production Variables Setup
+Add these variables in your **Cloudflare Pages/Workers Dashboard > Settings > Environment Variables**:
+*   `PAYWALL_ENABLED`: Set to `"true"` to activate repository-scoped paywall gates.
+*   `STRIPE_PAYMENT_LINK`: The URL of your Stripe Payment Link (e.g., `https://buy.stripe.com/...`). Pouta dynamically appends the active `?client_reference_id=owner/repo` to track repository purchases.
+*   `STRIPE_PORTAL_LINK`: The URL of your Stripe-hosted Customer Portal login page (e.g., `https://billing.stripe.com/p/login/...`), allowing 1-click self-service invoice and cancellation management.
+*   `STRIPE_WEBHOOK_SECRET` (Secret): Your production Stripe webhook signing secret (`whsec_...`) to verify signatures at the edge.
 
 ---
 

@@ -69,6 +69,46 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
+    // 3.5. Paywall Gate: Enforce active subscription if enabled
+    const paywallEnabled = env.PAYWALL_ENABLED === 'true';
+    if (paywallEnabled) {
+      const db = (env as any).DB;
+      if (!db) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Internal Server Error: Database "DB" binding not configured.' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const repoPath = `${repoOwner}/${repoName}`.toLowerCase();
+      let isSubscribed = false;
+
+      try {
+        const subRecord = await db
+          .prepare('SELECT status, expires_at FROM subscriptions WHERE repo_path = ?')
+          .bind(repoPath)
+          .first();
+
+        if (subRecord) {
+          const nowInSeconds = Math.floor(Date.now() / 1000);
+          isSubscribed = subRecord.status === 'active' && subRecord.expires_at > nowInSeconds;
+        }
+      } catch (dbErr) {
+        console.error('Failed to verify subscription cache during upload:', dbErr);
+      }
+
+      if (!isSubscribed) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'PAYWALL_REQUIRED',
+            message: 'Image storage is a premium feature. Please upgrade your repository plan to Pro.'
+          }),
+          { status: 402, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // 4. Validate image constraints (Format & Mime Type)
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
     if (!ALLOWED_MIME_TYPES.includes(file.type) || !ALLOWED_EXTENSIONS.includes(fileExtension)) {

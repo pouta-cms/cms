@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
-import { verifySession } from '../../../utils/auth';
+import { verifySession, verifyCollaborator } from '../../../utils/auth';
 
 export const prerender = false;
 
@@ -15,8 +15,9 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // 1. Verify stateless session cookie
+    let userToken = '';
     try {
-      await verifySession(request, sessionSecret);
+      userToken = await verifySession(request, sessionSecret);
     } catch (e: any) {
       return new Response(JSON.stringify({ success: false, error: 'Unauthorized login session.' }), {
         status: 401,
@@ -25,7 +26,65 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const body = await request.json();
-    const { title, content } = body;
+    const { title, content, repo_owner, repo_name } = body;
+
+    // 1.5. Tenancy Guard: Verify collaborator push permissions
+    if (repo_owner && repo_name) {
+      const isCollaborator = await verifyCollaborator(userToken, repo_owner, repo_name);
+      if (!isCollaborator) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Forbidden: You do not have write access to this repository.' }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // 1.6. Paywall Gate: Enforce active subscription if enabled
+    const paywallEnabled = env.PAYWALL_ENABLED === 'true';
+    if (paywallEnabled) {
+      if (!repo_owner || !repo_name) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Bad Request: Missing repo_owner and repo_name parameters for billing.' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const db = (env as any).DB;
+      if (!db) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Internal Server Error: Database "DB" binding not configured.' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const repoPath = `${repo_owner}/${repo_name}`.toLowerCase();
+      let isSubscribed = false;
+
+      try {
+        const subRecord = await db
+          .prepare('SELECT status, expires_at FROM subscriptions WHERE repo_path = ?')
+          .bind(repoPath)
+          .first();
+
+        if (subRecord) {
+          const nowInSeconds = Math.floor(Date.now() / 1000);
+          isSubscribed = subRecord.status === 'active' && subRecord.expires_at > nowInSeconds;
+        }
+      } catch (dbErr) {
+        console.error('Failed to verify subscription cache during AI categories:', dbErr);
+      }
+
+      if (!isSubscribed) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'PAYWALL_REQUIRED',
+            message: 'AI Category Generator is a premium feature. Please upgrade your repository plan.'
+          }),
+          { status: 402, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     if (!content) {
       return new Response(JSON.stringify({ success: false, error: 'No content provided to categorize.' }), {
