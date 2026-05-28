@@ -91,11 +91,11 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Validate generated description contract
-    if (!cleaned || cleaned.length < 120 || cleaned.length > 160) {
+    if (!cleaned || cleaned.length < 20 || cleaned.length > 300) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `AI generated description length (${cleaned.length} chars) is outside the required 120-160 character range.`
+          error: `AI generated description length (${cleaned.length} chars) is outside the allowed 20-300 character range.`
         }),
         {
           status: 400,

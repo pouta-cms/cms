@@ -1156,6 +1156,22 @@ export default function CMSWorkspace() {
                         placeholder={`Enter ${field.label.toLowerCase()}...`}
                         rows={3}
                       />
+                      <div className={`description-char-counter ${
+                        fieldValue.length >= 120 && fieldValue.length <= 160
+                          ? 'perfect'
+                          : fieldValue.length > 160
+                          ? 'warning'
+                          : fieldValue.length > 0
+                          ? 'short'
+                          : ''
+                      }`}>
+                        <span>
+                          {fieldValue.length >= 120 && fieldValue.length <= 160 && '✨ Perfect SEO length'}
+                          {fieldValue.length > 160 && '⚠️ Too long (will truncate in search)'}
+                          {fieldValue.length > 0 && fieldValue.length < 120 && 'ℹ️ Too short'}
+                        </span>
+                        <span className="char-count">{fieldValue.length} / 160</span>
+                      </div>
                       <button
                         type="button"
                         className="btn-ai-generate"
@@ -2488,6 +2504,33 @@ export default function CMSWorkspace() {
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
+        }
+
+        .description-char-counter {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.72rem;
+          color: #94a3b8;
+          padding: 0 0.1rem;
+          margin-top: -0.2rem;
+          margin-bottom: 0.1rem;
+          transition: color 0.2s ease;
+        }
+
+        .description-char-counter.perfect {
+          color: #34d399; /* emerald green */
+        }
+
+        .description-char-counter.warning {
+          color: #fbbf24; /* amber yellow */
+        }
+
+        .description-char-counter.short {
+          color: #94a3b8; /* neutral slate */
+        }
+
+        .char-count {
+          font-weight: 500;
         }
 
         .btn-ai-generate {
