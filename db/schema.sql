@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS documents;
 
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
