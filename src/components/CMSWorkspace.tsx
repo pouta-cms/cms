@@ -176,8 +176,14 @@ export default function CMSWorkspace() {
   useEffect(() => {
     if (!selectedRepo) return;
 
+    // Reset billing/paywall states immediately when new repo loads to prevent retaining prior workspace value
+    setSubscriptionActive(false);
+    setStripeCheckoutUrl('');
+    setStripePortalUrl('');
+    setIsUpgradeModalOpen(false);
+    setCheckingSubscription(true);
+
     const checkWorkspaceSubscription = async () => {
-      setCheckingSubscription(true);
       try {
         const response = await fetch(`/api/subscription/status?repo=${encodeURIComponent(selectedRepo)}`);
         const data = await response.json();

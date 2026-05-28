@@ -36,27 +36,26 @@ export const POST: APIRoute = async ({ request }) => {
     }
     const { content, repo_owner, repo_name } = body;
 
+    // Upfront validation: require repo coordinates unconditionally
+    if (!repo_owner || !repo_name) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Bad Request: Missing repo_owner and repo_name parameters.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 1.5. Tenancy Guard: Verify collaborator push permissions
-    if (repo_owner && repo_name) {
-      const isCollaborator = await verifyCollaborator(userToken, repo_owner, repo_name);
-      if (!isCollaborator) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Forbidden: You do not have write access to this repository.' }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
+    const isCollaborator = await verifyCollaborator(userToken, repo_owner, repo_name);
+    if (!isCollaborator) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Forbidden: You do not have write access to this repository.' }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     // 1.6. Paywall Gate: Enforce active subscription if enabled
     const paywallEnabled = env.PAYWALL_ENABLED === 'true';
     if (paywallEnabled) {
-      if (!repo_owner || !repo_name) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Bad Request: Missing repo_owner and repo_name parameters for billing.' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
       const db = (env as any).DB;
       if (!db) {
         return new Response(
@@ -67,6 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
 
       const repoPath = `${repo_owner}/${repo_name}`.toLowerCase();
       let isSubscribed = false;
+      let dbErrorOccurred = false;
 
       try {
         const subRecord = await db
@@ -80,6 +80,18 @@ export const POST: APIRoute = async ({ request }) => {
         }
       } catch (dbErr) {
         console.error('Failed to verify subscription cache during AI headlines:', dbErr);
+        dbErrorOccurred = true;
+      }
+
+      if (dbErrorOccurred) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'SUBSCRIPTION_CHECK_FAILED',
+            message: 'Failed to verify workspace subscription due to an internal database error.'
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
       }
 
       if (!isSubscribed) {

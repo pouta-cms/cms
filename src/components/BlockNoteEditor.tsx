@@ -50,7 +50,7 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
         let isPaywall = response.status === 402;
         try {
           const errData = await response.json();
-          errorMsg = errData.error || errorMsg;
+          errorMsg = errData.message || errData.msg || errData.error || errorMsg;
           if (errData.error === 'PAYWALL_REQUIRED') {
             isPaywall = true;
           }
@@ -153,7 +153,7 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
         setAiMenuOpen(false);
         setSelectedText('');
       } else {
-        const errorMsg = data.error || 'Failed to perform AI assistance.';
+        const errorMsg = data.message || data.msg || data.error || 'Failed to perform AI assistance.';
         if ((response.status === 402 || data.error === 'PAYWALL_REQUIRED') && onPaywallTrigger) {
           onPaywallTrigger(errorMsg);
         }

@@ -82,6 +82,7 @@ export const POST: APIRoute = async ({ request }) => {
 
       const repoPath = `${repoOwner}/${repoName}`.toLowerCase();
       let isSubscribed = false;
+      let dbLookupFailed = false;
 
       try {
         const subRecord = await db
@@ -95,6 +96,18 @@ export const POST: APIRoute = async ({ request }) => {
         }
       } catch (dbErr) {
         console.error('Failed to verify subscription cache during upload:', dbErr);
+        dbLookupFailed = true;
+      }
+
+      if (dbLookupFailed) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'SUBSCRIPTION_CHECK_FAILED',
+            message: 'Failed to verify repository subscription due to an internal database error.'
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
       }
 
       if (!isSubscribed) {

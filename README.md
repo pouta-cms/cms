@@ -104,6 +104,7 @@ To ensure high security, sensitive credentials and secrets must **never** be com
     # Stripe Billing Setup (Optional)
     PAYWALL_ENABLED="false"
     STRIPE_PAYMENT_LINK="https://buy.stripe.com/your_mock_payment_link"
+    STRIPE_PORTAL_LINK="https://billing.stripe.com/p/login/your_mock_portal_link"
     STRIPE_WEBHOOK_SECRET="whsec_your_mock_webhook_secret_key"
     ```
 
@@ -117,6 +118,7 @@ Add these keys under your project settings in the **Cloudflare Pages/Workers Das
 *   `R2_PUBLIC_URL_PREFIX` (The custom public domain mapped to your R2 bucket)
 *   `PAYWALL_ENABLED` (Optional, set to "true" to enable repository paywall locking)
 *   `STRIPE_PAYMENT_LINK` (Stripe Payment Link URL, e.g., `https://buy.stripe.com/...`)
+*   `STRIPE_PORTAL_LINK` (Stripe Customer Portal URL, e.g., `https://billing.stripe.com/p/login/...`)
 *   `STRIPE_WEBHOOK_SECRET` (Secret, Stripe webhook signature key `whsec_...`)
 *   **D1 Database Binding**: Bind your database directly in the Cloudflare Dashboard under your Pages Project > **Settings > Functions > D1 Database Bindings**. Bind the variable name `DB` to your production database. This is the recommended approach as it completely removes the need to supply or track the database UUID in `wrangler.jsonc` or CI/CD pipeline files.
 

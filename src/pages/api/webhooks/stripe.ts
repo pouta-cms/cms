@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers';
 export const prerender = false;
 
 // Edge-native signature verifier to prevent spoofing
+// Edge-native signature verifier to prevent spoofing
 async function verifyStripeSignature(
   payload: string,
   header: string | null,
@@ -14,38 +15,62 @@ async function verifyStripeSignature(
   try {
     const parts = header.split(',');
     const tPart = parts.find((p) => p.trim().startsWith('t='));
-    const v1Part = parts.find((p) => p.trim().startsWith('v1='));
+    if (!tPart) return false;
 
-    if (!tPart || !v1Part) return false;
+    const timestampStr = tPart.split('=')[1];
+    const timestamp = Number(timestampStr);
+    if (isNaN(timestamp)) return false;
 
-    const timestamp = tPart.split('=')[1];
-    const signature = v1Part.split('=')[1];
+    // Enforce timestamp freshness check (300 seconds tolerance)
+    const TOLERANCE_SECONDS = 300;
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowInSeconds - timestamp) > TOLERANCE_SECONDS) {
+      console.warn('Stripe Webhook expired timestamp tolerance.');
+      return false;
+    }
 
-    const signedPayload = `${timestamp}.${payload}`;
+    const v1Parts = parts.filter((p) => p.trim().startsWith('v1='));
+    if (v1Parts.length === 0) return false;
+
+    const signedPayload = `${timestampStr}.${payload}`;
     const encoder = new TextEncoder();
     const keyBytes = encoder.encode(secret);
 
-    // Import the HMAC key
+    // Import the HMAC key with both 'sign' and 'verify' key usages
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       keyBytes,
       { name: 'HMAC', hash: 'SHA-256' },
       false,
-      ['sign']
+      ['sign', 'verify']
     );
 
-    // Convert hex signature back to bytes
-    const signatureBytes = new Uint8Array(
-      (signature.match(/.{1,2}/g) || []).map((byte) => parseInt(byte, 16))
-    );
+    const signedPayloadBytes = encoder.encode(signedPayload);
 
-    // Verify signature
-    return await crypto.subtle.verify(
-      'HMAC',
-      cryptoKey,
-      signatureBytes,
-      encoder.encode(signedPayload)
-    );
+    // Verify against each v1 signature, returning true if any matches
+    for (const v1Part of v1Parts) {
+      const signature = v1Part.split('=')[1];
+      if (!signature) continue;
+
+      // Convert hex signature back to bytes safely
+      const cleanSig = signature.trim();
+      const signatureBytes = new Uint8Array(
+        (cleanSig.match(/.{1,2}/g) || []).map((byte) => parseInt(byte, 16))
+      );
+
+      const isSigValid = await crypto.subtle.verify(
+        'HMAC',
+        cryptoKey,
+        signatureBytes,
+        signedPayloadBytes
+      );
+
+      if (isSigValid) {
+        return true; // Match found
+      }
+    }
+
+    return false; // No signature matches
   } catch (err) {
     console.error('Signature verification error:', err);
     return false;
@@ -68,17 +93,20 @@ export const POST: APIRoute = async ({ request }) => {
     const rawBody = await request.text();
     const signatureHeader = request.headers.get('Stripe-Signature');
 
-    // Only verify signatures if webhook secret is configured (useful for easy local dev testing)
-    if (webhookSecret) {
-      const isValid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
-      if (!isValid) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: Invalid Stripe signature.' }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-    } else {
-      console.warn('STRIPE_WEBHOOK_SECRET is not set. Signature verification bypassed.');
+    // Strict Webhook Protection: Do not fail open
+    if (!webhookSecret || !signatureHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: Missing webhook signing secret or Stripe signature header.' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const isValid = await verifyStripeSignature(rawBody, signatureHeader, webhookSecret);
+    if (!isValid) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: Invalid Stripe signature.' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     const event = JSON.parse(rawBody);
