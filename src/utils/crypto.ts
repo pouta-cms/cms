@@ -14,7 +14,7 @@ async function getCryptoKey(secret: string): Promise<CryptoKey> {
 
 // Encrypts a session token string statelessly
 export async function encryptToken(token: string, secret: string): Promise<string> {
-  if (!secret) {
+  if (!secret || secret.trim() === '') {
     throw new Error('missing encryption secret');
   }
   try {
@@ -45,7 +45,7 @@ export async function encryptToken(token: string, secret: string): Promise<strin
 
 // Decrypts a secure session token string
 export async function decryptToken(encryptedString: string, secret: string): Promise<string> {
-  if (!secret) {
+  if (!secret || secret.trim() === '') {
     throw new Error('missing encryption secret');
   }
   try {
