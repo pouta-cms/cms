@@ -69,14 +69,17 @@ export const GET: APIRoute = async ({ request }) => {
     const listed = await bucket.list({ prefix, limit: 500 });
 
     const domainPrefix = publicUrlPrefix.replace(/\/$/, '');
-    const images = (listed.objects || []).map((obj: any) => ({
-      key: obj.key,
-      url: `${domainPrefix}/${obj.key}`,
-      size: obj.size,
-      uploaded: obj.uploaded,
-      // Extract original filename from the key: uploads/owner/name/{uuid}-{filename}
-      name: obj.key.split('/').pop() || obj.key,
-    }));
+    const images = (listed.objects || []).map((obj: any) => {
+      const encodedKey = obj.key.split('/').map(encodeURIComponent).join('/');
+      return {
+        key: obj.key,
+        url: `${domainPrefix}/${encodedKey}`,
+        size: obj.size,
+        uploaded: obj.uploaded,
+        // Extract original filename from the key: uploads/owner/name/{uuid}-{filename}
+        name: obj.key.split('/').pop() || obj.key,
+      };
+    });
 
     // Sort by upload time descending (newest first)
     images.sort((a: any, b: any) => {

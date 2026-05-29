@@ -98,6 +98,30 @@ export default function CMSWorkspace() {
   useEffect(() => { docIdRef.current = docId; }, [docId]);
   useEffect(() => { draftsRef.current = drafts; }, [drafts]);
 
+  // Ref for the media library close button (focus management) and copy confirmation timer
+  const mediaLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Move focus into modal on open, restore it on close; also handle Escape key
+  useEffect(() => {
+    if (!isMediaLibraryOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    // Defer so the modal is in the DOM before we focus
+    const focusTimer = setTimeout(() => mediaLibraryCloseRef.current?.focus(), 0);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMediaLibraryOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isMediaLibraryOpen]);
+
+  // Cleanup copy timeout on unmount
+  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current); }, []);
+
   // Track responsive screen breakpoints
   const [showSettingsToggle, setShowSettingsToggle] = useState(true);
   useEffect(() => {
@@ -769,11 +793,12 @@ export default function CMSWorkspace() {
     }
   };
 
-  // Copy image URL to clipboard
+  // Copy image URL to clipboard; cancel any in-flight confirmation timer first
   const handleCopyImageUrl = (url: string, key: string) => {
     navigator.clipboard.writeText(url).then(() => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       setCopiedKey(key);
-      setTimeout(() => setCopiedKey(''), 2000);
+      copyTimeoutRef.current = setTimeout(() => setCopiedKey(''), 2000);
     });
   };
 
@@ -1732,10 +1757,16 @@ export default function CMSWorkspace() {
       {/* Media Library Modal */}
       {isMediaLibraryOpen && (
         <div className="modal-overlay" onClick={() => setIsMediaLibraryOpen(false)}>
-          <div className="media-library-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="media-library-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="media-library-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="media-library-header">
-              <div className="media-library-title">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div id="media-library-title" className="media-library-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                   <circle cx="8.5" cy="8.5" r="1.5"/>
                   <polyline points="21 15 16 10 5 21"/>
@@ -1744,11 +1775,12 @@ export default function CMSWorkspace() {
                 <span className="media-library-repo-badge">{selectedRepo}</span>
               </div>
               <button
+                ref={mediaLibraryCloseRef}
                 className="media-library-close"
                 onClick={() => setIsMediaLibraryOpen(false)}
                 aria-label="Close media library"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
