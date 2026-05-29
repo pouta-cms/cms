@@ -1,7 +1,7 @@
 // Derives a high-entropy AES-GCM CryptoKey from a secret passphrase
 async function getCryptoKey(secret: string): Promise<CryptoKey> {
   const enc = new TextEncoder();
-  const rawKey = enc.encode(secret || 'default-fallback-pouta-key-32-chars-minimum');
+  const rawKey = enc.encode(secret);
   const hash = await crypto.subtle.digest('SHA-256', rawKey);
   return crypto.subtle.importKey(
     'raw',

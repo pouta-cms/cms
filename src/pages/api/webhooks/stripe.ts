@@ -56,10 +56,7 @@ async function verifyStripeSignature(
       if (!cleanSig || !/^[0-9a-fA-F]+$/.test(cleanSig)) {
         return false;
       }
-      const matches = cleanSig.match(/.{1,2}/g);
-      if (!matches) {
-        return false;
-      }
+      const matches = cleanSig.match(/.{1,2}/g)!;
       const signatureBytes = new Uint8Array(
         matches.map((byte) => parseInt(byte, 16))
       );

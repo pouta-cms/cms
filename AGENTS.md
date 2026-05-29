@@ -212,6 +212,8 @@ Pouta uses two types of GitHub tokens:
 - **Test location**: `tests/` directory
 - **Run tests**: `npx vitest run`
 - **Run with coverage**: `npx vitest run --coverage`
+- **Coverage Requirement**: **Mandatory 100% coverage** on all files included in the coverage report. Every new feature, logic branch, endpoint, or helper *must* be accompanied by unit tests.
+- **Coverage Gates**: Do not commit code that drops test coverage. Running `npx vitest run --coverage` must report 100% statement, branch, function, and line coverage for the target files.
 - Cloudflare bindings are mocked via `tests/mocks/cloudflare-workers.ts`
 - `src/components/BlockNoteEditor.tsx` and `src/components/CMSWorkspace.tsx` are **excluded** from coverage (require browser/ProseMirror context)
 - Do not write tests that require a live D1 database or real GitHub API — mock them
