@@ -487,6 +487,62 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       tokenSpy.mockRestore();
       fetchSpy.mockRestore();
     });
+
+    it('returns 200 and publishes empty body if content_json is null', async () => {
+      const verifySpy = vi.spyOn(auth, 'verifySession').mockResolvedValue('token');
+      const collabSpy = vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
+      const tokenSpy = vi.spyOn(githubApp, 'getInstallationAccessToken').mockResolvedValue('inst_token');
+
+      const mockDoc = {
+        id: 'doc-1',
+        type: 'post',
+        slug: 'hello',
+        title: 'Hello Post',
+        metadata_json: JSON.stringify({}),
+        content_json: 'null',
+        repo_owner: 'owner',
+        repo_name: 'repo',
+        repo_branch: 'main',
+        github_installation_id: '123',
+        created_at: '2026-05-29T10:00:00Z',
+      };
+      mockDb.first.mockResolvedValueOnce(mockDoc);
+
+      const mockConfig = { contentTypes: [{ type: 'post', writePath: 'src/pages/posts/{slug}.md', fields: [] }] };
+
+      let fetchCount = 0;
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        fetchCount++;
+        if (fetchCount === 1) {
+          return { ok: true, json: async () => ({ content: btoa(JSON.stringify(mockConfig)) }) } as Response;
+        }
+        if (fetchCount === 2) {
+          return { ok: true, json: async () => ({ sha: 'abcdef123456' }) } as Response;
+        }
+        if (fetchCount === 3) {
+          return { ok: true } as Response;
+        }
+        return { ok: false } as Response;
+      });
+
+      mockDb.run.mockResolvedValueOnce({ success: true });
+
+      const context = {
+        request: new Request('https://cms.pouta.local/api/content/publish', {
+          method: 'POST',
+          headers: { Cookie: 'pouta_session=valid-session-cookie' },
+          body: JSON.stringify({ id: 'doc-1' }),
+        }),
+      } as any;
+
+      const response = await publishPOST(context);
+      expect(response.status).toBe(200);
+
+      verifySpy.mockRestore();
+      collabSpy.mockRestore();
+      tokenSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
   });
 
   describe('list.ts', () => {
@@ -982,7 +1038,13 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
               { type: 'paragraph', content: [{ type: 'text', text: 'Child paragraph' }] }
             ]
           },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Non-array children parent' }],
+            children: { length: 1 } as any
+          },
           { type: 'bulletListItem', content: [{ type: 'text', text: 'Bullet item' }] },
+          { type: 'heading', props: { level: 3 }, content: [{ type: 'text', text: 'Heading After Bullet' }] },
           {
             type: 'bulletListItem',
             content: [{ type: 'text', text: 'Parent bullet' }],

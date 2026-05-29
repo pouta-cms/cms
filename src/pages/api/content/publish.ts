@@ -113,28 +113,36 @@ function blockToMarkdown(block: any): string {
   }
 
   // Handle nested lists recursively
-  if (block.children && Array.isArray(block.children) && block.children.length > 0) {
-    const childMd = block.children
-      .map((child: any) => {
-        const childStr = blockToMarkdown(child);
-        if (['bulletListItem', 'numberedListItem', 'checkListItem'].includes(blockType)) {
-          return childStr
-            .split('\n')
-            .map((line) => (line ? `  ${line}` : ''))
-            .join('\n');
-        }
-        return childStr;
-      })
-      .join('');
-    md += childMd;
+  if (block.children && block.children.length > 0) {
+    const childMd = blocksToMarkdown(block.children);
+    if (['bulletListItem', 'numberedListItem', 'checkListItem'].includes(blockType)) {
+      md += childMd
+        .split('\n')
+        .map((line) => (line ? `  ${line}` : ''))
+        .join('\n');
+    } else {
+      md += childMd;
+    }
   }
 
   return md;
 }
 
 function blocksToMarkdown(blocks: any[]): string {
-  if (!blocks || !Array.isArray(blocks)) return '';
-  return blocks.map(blockToMarkdown).join('');
+  if (!Array.isArray(blocks)) return '';
+  let result = '';
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const blockStr = blockToMarkdown(block);
+
+    if (block.type === 'heading' && result.length > 0) {
+      if (!result.endsWith('\n\n')) {
+        result += '\n';
+      }
+    }
+    result += blockStr;
+  }
+  return result;
 }
 
 export const POST: APIRoute = async ({ request }) => {
