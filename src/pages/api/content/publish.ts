@@ -321,7 +321,7 @@ export const POST: APIRoute = async ({ request }) => {
     // Escape frontmatter strings safely
     const escapeYaml = (val: any) => {
       if (val === undefined || val === null) return '';
-      return String(val).replace(/"/g, '\\"');
+      return String(val).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     };
 
     let frontmatterRows = [
