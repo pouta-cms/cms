@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET as loginGET } from '../../../src/pages/api/auth/login';
 import { GET as logoutGET } from '../../../src/pages/api/auth/logout';
 import { GET as meGET } from '../../../src/pages/api/auth/me';
@@ -19,10 +19,6 @@ describe('Auth API Routes', () => {
       GITHUB_CLIENT_SECRET: 'placeholder_github_client_secret',
       SESSION_SECRET: 'default-fallback-pouta-key-32-chars-minimum',
     });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   describe('login.ts', () => {

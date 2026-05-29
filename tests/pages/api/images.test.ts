@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as uploadPOST } from '../../../src/pages/api/images/upload';
 import { env } from 'cloudflare:workers';
 import * as auth from '../../../src/utils/auth';
@@ -35,10 +35,6 @@ describe('Images Upload API', () => {
     mockDb.first.mockReset();
     mockBucket.put.mockReset();
     mockAi.run.mockReset();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   it('returns 500 if SESSION_SECRET is missing', async () => {

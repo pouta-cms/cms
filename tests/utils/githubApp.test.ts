@@ -3,7 +3,7 @@ import { generateAppJWT, getInstallationAccessToken } from '../../src/utils/gith
 
 describe('githubApp utility helpers', () => {
   const appId = '123456';
-  const mockPrivateKey = 'bW9jay1wcml2YXRlLWtleS1wbGFjZWhvbGRlcg==';
+  const mockPrivateKey = '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3\n-----END PRIVATE KEY-----';
   const installationId = '987654';
 
   it('generates a signed GitHub App JWT successfully', async () => {

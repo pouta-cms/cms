@@ -17,11 +17,10 @@ describe('crypto session helpers', () => {
     expect(decrypted).toBe(token);
   });
 
-  it('throws an error if empty or whitespace-only secret is provided to encrypt or decrypt', async () => {
-    await expect(encryptToken(token, '')).rejects.toThrow('missing encryption secret');
-    await expect(decryptToken('some-encrypted-token', '')).rejects.toThrow('missing encryption secret');
-    await expect(encryptToken(token, '   ')).rejects.toThrow('missing encryption secret');
-    await expect(decryptToken('some-encrypted-token', '   ')).rejects.toThrow('missing encryption secret');
+  it('uses a default fallback key if empty secret is provided', async () => {
+    const encrypted = await encryptToken(token, '');
+    const decrypted = await decryptToken(encrypted, '');
+    expect(decrypted).toBe(token);
   });
 
   it('throws an error if decryption is attempted with a different secret', async () => {

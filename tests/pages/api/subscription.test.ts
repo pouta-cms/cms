@@ -28,10 +28,6 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   describe('repos.ts', () => {
     it('returns 401 if session is invalid', async () => {
       const verifySpy = vi.spyOn(auth, 'verifySession').mockRejectedValue(new Error('Session invalid'));
@@ -589,7 +585,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: validRawBody,
         }),
       } as any;
@@ -628,7 +624,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: fallbackBody,
         }),
       } as any;
@@ -667,7 +663,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: noRepoBody,
         }),
       } as any;
@@ -711,7 +707,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const contextUpdate = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: updateBody,
         }),
       } as any;
@@ -722,7 +718,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const contextDelete = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: deleteBody,
         }),
       } as any;
@@ -752,7 +748,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: invalidBase64Body,
         }),
       } as any;
@@ -780,7 +776,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: validRawBody,
         }),
       } as any;
@@ -821,7 +817,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: customFieldsBody,
         }),
       } as any;
@@ -857,7 +853,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: paddingMissingBody,
         }),
       } as any;
@@ -880,7 +876,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: validRawBody,
         }),
       } as any;
@@ -915,7 +911,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context1 = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: metadataRefBody,
         }),
       } as any;
@@ -940,7 +936,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context2 = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: metadataRepoBody,
         }),
       } as any;
@@ -968,7 +964,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context3 = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: customFieldRepoBody,
         }),
       } as any;
@@ -997,7 +993,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context4 = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: customFieldLabelBody,
         }),
       } as any;
@@ -1024,7 +1020,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context5 = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: customFieldEmptyBody,
         }),
       } as any;
@@ -1055,7 +1051,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: pastDueBody,
         }),
       } as any;
@@ -1080,7 +1076,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: validRawBody,
         }),
       } as any;
@@ -1146,7 +1142,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: customFieldRepoBody,
         }),
       } as any;
@@ -1176,7 +1172,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=${now},v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=${now},v1=validsig` },
           body: unhandledEventBody,
         }),
       } as any;
@@ -1192,7 +1188,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `v1=validsig` },
           body: validRawBody,
         }),
       } as any;
@@ -1204,7 +1200,7 @@ describe('Subscription, Repositories, and Stripe Webhook APIs', () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/webhooks/stripe', {
           method: 'POST',
-          headers: { 'Stripe-Signature': `t=notanumber,v1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` },
+          headers: { 'Stripe-Signature': `t=notanumber,v1=validsig` },
           body: validRawBody,
         }),
       } as any;
