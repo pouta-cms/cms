@@ -45,18 +45,17 @@ interface HydratedDocument {
 }
 
 function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
-  if (typeof doc !== 'object' || doc === null) {
+  if (doc === null || typeof doc !== 'object') {
     return false;
   }
-  const d = doc as Record<string, unknown>;
   return (
-    typeof d.id === 'string' &&
-    typeof d.type === 'string' &&
-    typeof d.slug === 'string' &&
-    typeof d.title === 'string' &&
-    typeof d.status === 'string' &&
-    typeof d.content_json === 'string' &&
-    typeof d.metadata_json === 'string'
+    'id' in doc && typeof (doc as Record<string, unknown>)['id'] === 'string' &&
+    'type' in doc && typeof (doc as Record<string, unknown>)['type'] === 'string' &&
+    'slug' in doc && typeof (doc as Record<string, unknown>)['slug'] === 'string' &&
+    'title' in doc && typeof (doc as Record<string, unknown>)['title'] === 'string' &&
+    'status' in doc && typeof (doc as Record<string, unknown>)['status'] === 'string' &&
+    'content_json' in doc && typeof (doc as Record<string, unknown>)['content_json'] === 'string' &&
+    'metadata_json' in doc && typeof (doc as Record<string, unknown>)['metadata_json'] === 'string'
   );
 }
 
@@ -123,6 +122,7 @@ export default function CMSWorkspace() {
 
   // References to keep state values strictly up-to-date in asynchronous closures (e.g. handleDeleteDraft)
   const docIdRef = useRef(docId);
+  const lastRequestedDraftIdRef = useRef<string>('');
   const draftsRef = useRef(drafts);
   useEffect(() => { docIdRef.current = docId; }, [docId]);
   useEffect(() => { draftsRef.current = drafts; }, [drafts]);
@@ -330,6 +330,7 @@ export default function CMSWorkspace() {
             handleLoadDraftInWorkspace(firstDoc.id, data.documents);
           } else {
             setIsDraftHydrated(false);
+            lastRequestedDraftIdRef.current = firstDoc.id;
             fetchFullDocumentDetail(firstDoc.id);
           }
         } else {
@@ -346,12 +347,50 @@ export default function CMSWorkspace() {
 
   // Load full document details from D1 if they are missing from list
   const fetchFullDocumentDetail = async (draftId: string) => {
+    // 1. First look up the draft in existing draftsRef.current
+    const localMatched: unknown = draftsRef.current.find((d) => d.id === draftId);
+    if (isFullyHydratedDocument(localMatched)) {
+      setSaveStatus('Idle');
+      setDocId(localMatched.id);
+      setActiveType(localMatched.type);
+      setTitle(localMatched.title);
+      setSlug(localMatched.slug);
+      setStatus(localMatched.status);
+
+      try {
+        setBlocks(JSON.parse(localMatched.content_json));
+      } catch (e) {
+        setBlocks([]);
+      }
+
+      try {
+        setMetadata(JSON.parse(localMatched.metadata_json));
+      } catch (e) {
+        setMetadata({});
+      }
+      setIsDraftHydrated(true);
+      return;
+    }
+
+    // 2. Fallback to fetch
+    const reqRepo = selectedRepo;
+    const reqDraftId = draftId;
+    lastRequestedDraftIdRef.current = draftId;
+
     try {
       const response = await fetch(`/api/content/list?repo=${encodeURIComponent(selectedRepo)}`);
       const data = await response.json();
+
+      // Guard against stale response
+      if (selectedRepo !== reqRepo || lastRequestedDraftIdRef.current !== reqDraftId) {
+        return;
+      }
+
       if (data.success && data.documents) {
         setDrafts(data.documents);
-        const matched: unknown = data.documents.find((d: any) => d.id === draftId);
+        const matched: unknown = data.documents.find((d: unknown) => {
+          return d !== null && typeof d === 'object' && 'id' in d && d.id === draftId;
+        });
         if (isFullyHydratedDocument(matched)) {
           setSaveStatus('Idle');
           setDocId(matched.id);
@@ -383,6 +422,8 @@ export default function CMSWorkspace() {
     const listToSearch = currentDraftsList || draftsRef.current;
     const matched: unknown = listToSearch.find((d) => d.id === draftId);
     if (!matched) return;
+
+    lastRequestedDraftIdRef.current = draftId;
 
     if (isFullyHydratedDocument(matched)) {
       setSaveStatus('Idle');
