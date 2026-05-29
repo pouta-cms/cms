@@ -7,10 +7,9 @@ export const prerender = false;
 // Edge-native signature verifier to prevent spoofing
 async function verifyStripeSignature(
   payload: string,
-  header: string | null,
-  secret: string | null
+  header: string,
+  secret: string
 ): Promise<boolean> {
-  if (!header || !secret) return false;
 
   try {
     const parts = header.split(',');
@@ -54,8 +53,15 @@ async function verifyStripeSignature(
 
       // Convert hex signature back to bytes safely
       const cleanSig = signature.trim();
+      if (!cleanSig || !/^[0-9a-fA-F]+$/.test(cleanSig)) {
+        return false;
+      }
+      const matches = cleanSig.match(/.{1,2}/g);
+      if (!matches) {
+        return false;
+      }
       const signatureBytes = new Uint8Array(
-        (cleanSig.match(/.{1,2}/g) || []).map((byte) => parseInt(byte, 16))
+        matches.map((byte) => parseInt(byte, 16))
       );
 
       const isSigValid = await crypto.subtle.verify(

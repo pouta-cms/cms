@@ -191,6 +191,19 @@ Return ONLY the 5 headlines, each on a new line. Do NOT include numbers, letters
       );
     }
 
+    if (headlines.length < 3) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `AI generated an insufficient number of headlines (${headlines.length}). Expected at least 3.`
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

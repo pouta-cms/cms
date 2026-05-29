@@ -101,7 +101,7 @@ function blockToMarkdown(block: any): string {
     }
     case 'image': {
       const url = block.props?.url || '';
-      const altText = block.props?.name || block.props?.caption || 'Image';
+      const altText = block.props?.name || block.props?.caption || '';
       const safeAlt = escapeMarkdown(altText);
       md += `![${safeAlt}](${url})\n\n`;
       break;
