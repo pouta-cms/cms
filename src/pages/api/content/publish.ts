@@ -45,28 +45,35 @@ interface Block {
     url?: string;
     name?: string;
     caption?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   children?: Block[];
 }
 
-interface InlineContent {
-  type: string;
-  text?: string;
-  href?: string;
-  styles?: {
-    bold?: boolean;
-    italic?: boolean;
-    underline?: boolean;
-    strike?: boolean;
-    code?: boolean;
-  };
-  content?: InlineContent[];
-}
-
 function isBlock(value: unknown): value is Block {
   if (typeof value !== 'object' || value === null) return false;
-  return typeof (value as Record<string, any>).type === 'string';
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.type !== 'string') return false;
+
+  if ('props' in candidate && candidate.props !== undefined) {
+    if (typeof candidate.props !== 'object' || candidate.props === null) return false;
+    const props = candidate.props as Record<string, unknown>;
+    if ('level' in props && props.level !== undefined && typeof props.level !== 'number') return false;
+    if ('checked' in props && props.checked !== undefined && typeof props.checked !== 'boolean') return false;
+    if ('language' in props && props.language !== undefined && typeof props.language !== 'string') return false;
+    if ('url' in props && props.url !== undefined && typeof props.url !== 'string') return false;
+    if ('name' in props && props.name !== undefined && typeof props.name !== 'string') return false;
+    if ('caption' in props && props.caption !== undefined && typeof props.caption !== 'string') return false;
+  }
+
+  if ('children' in candidate && candidate.children !== undefined) {
+    if (!Array.isArray(candidate.children)) return false;
+    for (const child of candidate.children) {
+      if (!isBlock(child)) return false;
+    }
+  }
+
+  return true;
 }
 
 // BlockNote JSON structure converter to Markdown
@@ -78,26 +85,31 @@ function blockToMarkdown(block: Block): string {
   // Helper to extract text with style formatting
   const getText = (contentArr: unknown): string => {
     if (!Array.isArray(contentArr)) return '';
-    const arr = contentArr as InlineContent[];
-    return arr
-      .map((item) => {
-        if (item.type === 'text') {
-          let text = item.text || '';
-          const styles = item.styles;
-          if (styles) {
-            if (styles.bold) text = `**${text}**`;
-            if (styles.italic) text = `*${text}*`;
-            if (styles.underline) text = `<u>${text}</u>`;
-            if (styles.strike) text = `~~${text}~~`;
-            if (styles.code) text = `\`${text}\``;
+    return contentArr
+      .map((item: unknown) => {
+        if (typeof item !== 'object' || item === null) return '';
+        const obj = item as Record<string, unknown>;
+        if (typeof obj.type !== 'string') return '';
+
+        if (obj.type === 'text') {
+          let text = typeof obj.text === 'string' ? obj.text : '';
+          const styles = obj.styles;
+          if (styles && typeof styles === 'object') {
+            const stylesObj = styles as Record<string, unknown>;
+            if (stylesObj.bold) text = `**${text}**`;
+            if (stylesObj.italic) text = `*${text}*`;
+            if (stylesObj.underline) text = `<u>${text}</u>`;
+            if (stylesObj.strike) text = `~~${text}~~`;
+            if (stylesObj.code) text = `\`${text}\``;
           }
           return text;
-        } else if (item.type === 'link') {
-          let linkText = item.href || '';
-          if (item.content) {
-            linkText = getText(item.content);
+        } else if (obj.type === 'link') {
+          let linkText = typeof obj.href === 'string' ? obj.href : '';
+          if ('content' in obj && obj.content !== undefined) {
+            linkText = getText(obj.content);
           }
-          return `[${linkText}](${item.href || ''})`;
+          const href = typeof obj.href === 'string' ? obj.href : '';
+          return `[${linkText}](${href})`;
         }
         return '';
       })

@@ -1081,6 +1081,25 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
           null,
           {},
           123,
+          { type: 'paragraph', props: 123 },
+          { type: 'paragraph', props: null },
+          { type: 'heading', props: { level: 'invalid' } },
+          { type: 'checkListItem', props: { checked: 'invalid' } },
+          { type: 'codeBlock', props: { language: 123 } },
+          { type: 'image', props: { url: 123 } },
+          { type: 'image', props: { name: 123 } },
+          { type: 'image', props: { caption: 123 } },
+          { type: 'bulletListItem', children: 123 },
+          { type: 'bulletListItem', children: [123] },
+          {
+            type: 'paragraph',
+            content: [
+              null,
+              {},
+              123,
+              { type: 'text', text: 'Styling invalid text', styles: 123 }
+            ]
+          },
           { type: 'bulletListItem', content: [{ type: 'text', text: 'Bullet item' }] },
           { type: 'heading', props: { level: 3 }, content: [{ type: 'text', text: 'Heading After Bullet' }] },
           {
