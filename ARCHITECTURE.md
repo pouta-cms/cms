@@ -94,9 +94,9 @@ Pouta performs GFM file writing via **GitHub App Installation Access Tokens** in
 
 ```mermaid
 sequenceDiagram
-    participant Pouta as Pouta Edge API
-    participant Subtle as Web Crypto (SubtleCrypto)
-    participant GH as GitHub API Gateway
+    participant Pouta as "Pouta Edge API"
+    participant Subtle as "Web Crypto (SubtleCrypto)"
+    participant GH as "GitHub API Gateway"
 
     Note over Pouta, Subtle: 1. Import PKCS#8 RSA Key
     Pouta->>Subtle: base64UrlDecode(GITHUB_APP_PRIVATE_KEY_B64)
@@ -273,10 +273,10 @@ This diagram displays the user's initial sign-in and the loading of their reposi
 
 ```mermaid
 sequenceDiagram
-    actor Writer as Writer (User)
-    participant UI as CMS React Dashboard
-    participant API as Edge API (/api/auth)
-    participant GH as GitHub Gateway
+    actor Writer as "Writer (User)"
+    participant UI as "CMS React Dashboard"
+    participant API as "Edge API (/api/auth)"
+    participant GH as "GitHub Gateway"
 
     Writer->>UI: Clicks "Sign in with GitHub"
     UI->>API: GET /login
@@ -297,11 +297,11 @@ This diagram displays the autosave draft cycle and the final Git publishing comm
 
 ```mermaid
 sequenceDiagram
-    actor Writer as Writer (User)
-    participant UI as CMS React Dashboard
-    participant API as Edge API (/api/content)
-    participant D1 as D1 SQLite DB
-    participant GH as GitHub Gateway
+    actor Writer as "Writer (User)"
+    participant UI as "CMS React Dashboard"
+    participant API as "Edge API (/api/content)"
+    participant D1 as "D1 SQLite DB"
+    participant GH as "GitHub Gateway"
 
     Note over Writer, D1: 1. The Draft Autosave Cycle
     Writer->>UI: Typings in Canvas Editor
@@ -335,10 +335,10 @@ Pouta manages image uploads and delivery at the Edge without third-party SaaS de
 
 ```mermaid
 sequenceDiagram
-    actor Writer as Writer (User)
-    participant Editor as BlockNote Editor Canvas
-    participant API as Edge API (/api/images/upload)
-    participant R2 as Cloudflare R2 Bucket
+    actor Writer as "Writer (User)"
+    participant Editor as "BlockNote Editor Canvas"
+    participant API as "Edge API (/api/images/upload)"
+    participant R2 as "Cloudflare R2 Bucket"
     
     Writer->>Editor: Pastes / Drops Image File
     Editor->>API: POST multipart/form-data (File, repo_owner, repo_name)
@@ -376,15 +376,15 @@ Pouta integrates context-aware AI capabilities directly at the Edge using **Clou
 
 ```mermaid
 graph TD
-    Client[React CMS Dashboard] -->|1. POST Request| API[Edge AI Endpoint]
-    API -->|2. Paywall Gate check| Paywall[Paywall Validator]
-    Paywall -->|3. Query active subscription| D1[D1 SQLite Cache]
+    Client["React CMS Dashboard"] -->|1. POST Request| API["Edge AI Endpoint"]
+    API -->|2. Paywall Gate check| Paywall["Paywall Validator"]
+    Paywall -->|3. Query active subscription| D1["D1 SQLite Cache"]
     D1 -->|4. Active / Bypassed| Paywall
-    Paywall -->|5. Proceed| WorkersAI[Cloudflare Workers AI Binding]
-    WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3[Meta Llama-3-8b]
+    Paywall -->|5. Proceed| WorkersAI["Cloudflare Workers AI Binding"]
+    WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3["Meta Llama-3-8b"]
     Llama3 -->|7. Success / Fail fallback| WorkersAI
-    WorkersAI -.-->|8. Fallback to Llama-2-7b-chat| Llama2[Meta Llama-2-7b]
-    WorkersAI -->|9. Raw Text Response| Parser[Clean & Validate Schema]
+    WorkersAI -.->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
+    WorkersAI -->|9. Raw Text Response| Parser["Clean & Validate Schema"]
     Parser -->|10. JSON Array / String| Client
 ```
 
