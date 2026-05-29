@@ -84,11 +84,43 @@ export default function CMSWorkspace() {
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
 
+  // Media Library modal state
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [mediaImages, setMediaImages] = useState<any[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
+  const [copiedKey, setCopiedKey] = useState<string>('');
+
   // References to keep state values strictly up-to-date in asynchronous closures (e.g. handleDeleteDraft)
   const docIdRef = useRef(docId);
   const draftsRef = useRef(drafts);
   useEffect(() => { docIdRef.current = docId; }, [docId]);
   useEffect(() => { draftsRef.current = drafts; }, [drafts]);
+
+  // Ref for the media library close button (focus management) and copy confirmation timer
+  const mediaLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Move focus into modal on open, restore it on close; also handle Escape key
+  useEffect(() => {
+    if (!isMediaLibraryOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    // Defer so the modal is in the DOM before we focus
+    const focusTimer = setTimeout(() => mediaLibraryCloseRef.current?.focus(), 0);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMediaLibraryOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isMediaLibraryOpen]);
+
+  // Cleanup copy timeout on unmount
+  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current); }, []);
 
   // Track responsive screen breakpoints
   const [showSettingsToggle, setShowSettingsToggle] = useState(true);
@@ -711,6 +743,65 @@ export default function CMSWorkspace() {
     }
   };
 
+  // Fetch all uploaded images for the current repo from R2 (via list API)
+  const handleOpenMediaLibrary = async () => {
+    if (!selectedRepo) {
+      alert('Please select a repository workspace first.');
+      return;
+    }
+    const [owner, name] = selectedRepo.split('/');
+    setIsMediaLibraryOpen(true);
+    setLoadingMedia(true);
+    setMediaError('');
+    try {
+      const response = await fetch(
+        `/api/images/list?repo_owner=${encodeURIComponent(owner)}&repo_name=${encodeURIComponent(name)}`
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load media library.');
+      }
+      setMediaImages(data.images || []);
+    } catch (err: any) {
+      setMediaError(err.message || 'Failed to load images.');
+    } finally {
+      setLoadingMedia(false);
+    }
+  };
+
+  // Delete an image from R2 via delete API
+  const handleDeleteMediaImage = async (key: string) => {
+    if (!selectedRepo) return;
+    if (!confirm('Permanently delete this image from storage? This cannot be undone.')) return;
+    const [owner, name] = selectedRepo.split('/');
+    setDeletingKeys(prev => new Set(prev).add(key));
+    try {
+      const response = await fetch('/api/images/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, repo_owner: owner, repo_name: name }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete image.');
+      }
+      setMediaImages(prev => prev.filter(img => img.key !== key));
+    } catch (err: any) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeletingKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+    }
+  };
+
+  // Copy image URL to clipboard; cancel any in-flight confirmation timer first
+  const handleCopyImageUrl = (url: string, key: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      setCopiedKey(key);
+      copyTimeoutRef.current = setTimeout(() => setCopiedKey(''), 2000);
+    });
+  };
+
   // Handle R2 image uploads for declarative settings fields
   const handleMetadataImageUpload = async (fieldName: string, file: File) => {
     if (!file) return;
@@ -1025,6 +1116,23 @@ export default function CMSWorkspace() {
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
+            </button>
+          )}
+
+          {/* Media Library button */}
+          {selectedRepo && (
+            <button
+              className="btn-media-library"
+              onClick={handleOpenMediaLibrary}
+              title="Browse & manage uploaded images"
+              aria-label="Open Media Library"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span className="btn-media-label">Media</span>
             </button>
           )}
 
@@ -1643,6 +1751,160 @@ export default function CMSWorkspace() {
           </div>
         </>
       )}
+        </div>
+      )}
+
+      {/* Media Library Modal */}
+      {isMediaLibraryOpen && (
+        <div className="modal-overlay" onClick={() => setIsMediaLibraryOpen(false)}>
+          <div
+            className="media-library-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="media-library-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="media-library-header">
+              <div id="media-library-title" className="media-library-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                Media Library
+                <span className="media-library-repo-badge">{selectedRepo}</span>
+              </div>
+              <button
+                ref={mediaLibraryCloseRef}
+                className="media-library-close"
+                onClick={() => setIsMediaLibraryOpen(false)}
+                aria-label="Close media library"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <div className="media-library-body">
+              {loadingMedia ? (
+                <div className="media-library-loading">
+                  <svg className="spin-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.1)" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                  <span>Loading your media library...</span>
+                </div>
+              ) : mediaError ? (
+                <div className="media-library-error">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>{mediaError}</span>
+                  <button className="media-retry-btn" onClick={handleOpenMediaLibrary}>Retry</button>
+                </div>
+              ) : mediaImages.length === 0 ? (
+                <div className="media-library-empty">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{opacity: 0.3}}>
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  <p>No images uploaded yet.</p>
+                  <p className="media-empty-hint">Upload images via the Image fields in the sidebar, or drag an image into the editor.</p>
+                </div>
+              ) : (
+                <div className="media-image-grid">
+                  {mediaImages.map((img) => (
+                    <div key={img.key} className="media-image-card">
+                      <div className="media-image-thumb-wrapper">
+                        <img
+                          src={img.url}
+                          alt={img.name}
+                          className="media-image-thumb"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            const parent = (e.target as HTMLImageElement).parentElement;
+                            if (parent) {
+                              const errEl = document.createElement('div');
+                              errEl.className = 'media-thumb-error';
+                              errEl.textContent = '⚠️';
+                              parent.appendChild(errEl);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="media-image-info">
+                        <span className="media-image-name" title={img.name}>
+                          {img.name.replace(/^[a-f0-9-]{36}-/, '')}
+                        </span>
+                        {img.size && (
+                          <span className="media-image-size">
+                            {img.size < 1024 * 1024
+                              ? `${(img.size / 1024).toFixed(1)} KB`
+                              : `${(img.size / (1024 * 1024)).toFixed(2)} MB`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="media-image-actions">
+                        <button
+                          className={`media-btn-copy ${copiedKey === img.key ? 'copied' : ''}`}
+                          onClick={() => handleCopyImageUrl(img.url, img.key)}
+                          title="Copy image URL"
+                        >
+                          {copiedKey === img.key ? (
+                            <>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                              </svg>
+                              Copy URL
+                            </>
+                          )}
+                        </button>
+                        <button
+                          className="media-btn-delete"
+                          onClick={() => handleDeleteMediaImage(img.key)}
+                          disabled={deletingKeys.has(img.key)}
+                          title="Delete image"
+                        >
+                          {deletingKeys.has(img.key) ? (
+                            <svg className="spin-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.1)" />
+                              <path d="M12 2a10 10 0 0 1 10 10" />
+                            </svg>
+                          ) : (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="media-library-footer">
+              <span className="media-count">
+                {!loadingMedia && !mediaError && `${mediaImages.length} image${mediaImages.length !== 1 ? 's' : ''} stored`}
+              </span>
+              <button className="btn-upgrade-cancel" onClick={() => setIsMediaLibraryOpen(false)}>Close</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3349,6 +3611,280 @@ export default function CMSWorkspace() {
           .canvas-editor-body {
             max-width: 100%;
           }
+        }
+
+        /* ─── Media Library Button ───────────────────────────────── */
+        .btn-media-library {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          background: rgba(99, 102, 241, 0.1);
+          border: 1px solid rgba(99, 102, 241, 0.25);
+          border-radius: 8px;
+          color: #a5b4fc;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+          font-family: 'Outfit', sans-serif;
+        }
+        .btn-media-library:hover {
+          background: rgba(99, 102, 241, 0.2);
+          border-color: rgba(99, 102, 241, 0.5);
+          color: #c7d2fe;
+          box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+        }
+        .btn-media-label {
+          display: inline;
+        }
+
+        /* ─── Media Library Modal ─────────────────────────────────── */
+        .media-library-modal {
+          background: rgba(13, 17, 28, 0.92);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 20px;
+          width: min(900px, 95vw);
+          max-height: 85vh;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.08);
+          animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          font-family: 'Outfit', sans-serif;
+          overflow: hidden;
+        }
+
+        .media-library-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 24px 18px;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          flex-shrink: 0;
+        }
+
+        .media-library-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 15px;
+          font-weight: 700;
+          color: #e2e8f0;
+          letter-spacing: -0.01em;
+        }
+
+        .media-library-repo-badge {
+          font-size: 10px;
+          font-weight: 600;
+          padding: 3px 8px;
+          background: rgba(99, 102, 241, 0.12);
+          border: 1px solid rgba(99, 102, 241, 0.2);
+          border-radius: 9999px;
+          color: #a5b4fc;
+          letter-spacing: 0.02em;
+        }
+
+        .media-library-close {
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          color: #94a3b8;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .media-library-close:hover {
+          background: rgba(239, 68, 68, 0.12);
+          border-color: rgba(239, 68, 68, 0.25);
+          color: #f87171;
+        }
+
+        .media-library-body {
+          flex: 1;
+          overflow-y: auto;
+          padding: 20px 24px;
+          min-height: 200px;
+        }
+
+        .media-library-loading,
+        .media-library-error,
+        .media-library-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 60px 20px;
+          color: #64748b;
+          text-align: center;
+        }
+        .media-library-error { color: #f87171; }
+        .media-empty-hint {
+          font-size: 12px;
+          color: #475569;
+          max-width: 320px;
+          line-height: 1.6;
+        }
+
+        .media-retry-btn {
+          padding: 6px 16px;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.25);
+          border-radius: 6px;
+          color: #f87171;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .media-retry-btn:hover { background: rgba(239, 68, 68, 0.2); }
+
+        /* Image Grid */
+        .media-image-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 14px;
+        }
+
+        .media-image-card {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 12px;
+          overflow: hidden;
+          transition: all 0.2s ease;
+          display: flex;
+          flex-direction: column;
+        }
+        .media-image-card:hover {
+          border-color: rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
+          transform: translateY(-2px);
+        }
+
+        .media-image-thumb-wrapper {
+          width: 100%;
+          aspect-ratio: 4/3;
+          background: rgba(255,255,255,0.03);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .media-image-thumb {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s ease;
+        }
+        .media-image-card:hover .media-image-thumb {
+          transform: scale(1.04);
+        }
+
+        .media-thumb-error {
+          font-size: 24px;
+          opacity: 0.4;
+        }
+
+        .media-image-info {
+          padding: 8px 10px 4px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          flex: 1;
+        }
+
+        .media-image-name {
+          font-size: 11px;
+          color: #94a3b8;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-weight: 500;
+        }
+
+        .media-image-size {
+          font-size: 10px;
+          color: #475569;
+        }
+
+        .media-image-actions {
+          display: flex;
+          gap: 6px;
+          padding: 8px 10px 10px;
+        }
+
+        .media-btn-copy,
+        .media-btn-delete {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          padding: 5px 8px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-family: 'Outfit', sans-serif;
+          white-space: nowrap;
+        }
+
+        .media-btn-copy {
+          flex: 1;
+          justify-content: center;
+          background: rgba(99, 102, 241, 0.1);
+          border: 1px solid rgba(99, 102, 241, 0.2);
+          color: #a5b4fc;
+        }
+        .media-btn-copy:hover {
+          background: rgba(99, 102, 241, 0.2);
+          border-color: rgba(99, 102, 241, 0.4);
+        }
+        .media-btn-copy.copied {
+          background: rgba(16, 185, 129, 0.12);
+          border-color: rgba(16, 185, 129, 0.3);
+          color: #34d399;
+        }
+
+        .media-btn-delete {
+          background: rgba(239, 68, 68, 0.07);
+          border: 1px solid rgba(239, 68, 68, 0.15);
+          color: #f87171;
+          padding: 5px 9px;
+        }
+        .media-btn-delete:hover:not(:disabled) {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.35);
+        }
+        .media-btn-delete:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .media-library-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 24px 18px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+          flex-shrink: 0;
+        }
+
+        .media-count {
+          font-size: 12px;
+          color: #475569;
+          font-weight: 500;
+        }
+
+        @media (max-width: 480px) {
+          .btn-media-label { display: none; }
+          .media-image-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+          .media-library-modal { max-height: 92vh; }
         }
       `}</style>
     </>
