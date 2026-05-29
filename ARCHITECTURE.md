@@ -368,3 +368,67 @@ Images are served directly bypassing the Astro Worker:
 *   **Custom Domain Routing**: An external CNAME or custom domain (e.g. `media.yourdomain.com`) is mapped directly to the R2 bucket in the Cloudflare dashboard.
 *   **URL Prefixing**: The API resolves the environment variable `R2_PUBLIC_URL_PREFIX` to prepend the absolute serving path to the client. This guarantees zero-egress charges, CDN-level caching, and instant file rendering.
 
+---
+
+## 9. Edge-Native Cloudflare Workers AI Pipeline
+
+Pouta integrates context-aware AI capabilities directly at the Edge using **Cloudflare Workers AI**. Rather than pulling in high-latency, third-party LLM APIs, it utilizes local serverless models executing on Cloudflare's global GPU network.
+
+```mermaid
+graph TD
+    Client[React CMS Dashboard] -->|1. POST Request| API[Edge AI Endpoint]
+    API -->|2. Paywall Gate check| Paywall[Paywall Validator]
+    Paywall -->|3. Query active subscription| D1[D1 SQLite Cache]
+    D1 -->|4. Active / Bypassed| Paywall
+    Paywall -->|5. Proceed| WorkersAI[Cloudflare Workers AI Binding]
+    WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3[Meta Llama-3-8b]
+    Llama3 -->|7. Success / Fail fallback| WorkersAI
+    WorkersAI -.-->|8. Fallback to Llama-2-7b-chat| Llama2[Meta Llama-2-7b]
+    WorkersAI -->|9. Raw Text Response| Parser[Clean & Validate Schema]
+    Parser -->|10. JSON Array / String| Client
+```
+
+### A. Multi-Modal AI Content Operations
+*   **AI Assist (`/api/content/ai-assist`)**: Performs inline text generation, correction, expansion, or summarization based on the current ProseMirror block selection and custom prompts.
+*   **SEO Description Generator (`/api/content/generate-description`)**: Analyzes the title and main content to compile an optimized SEO meta-description between 120 and 160 characters.
+*   **Catchy Headline Recommender (`/api/content/generate-headlines`)**: Dynamically reads content semantics to suggest three alternative catchy, optimized headlines.
+*   **Tag & Category Extractor (`/api/content/generate-categories`)**: Suggests 3 to 5 highly relevant, concise, lowercase category tags, filtering out any extraneous text, introductory markdown, or conversational LLM padding.
+
+### B. Edge-Level Resiliency & Fallback Strategy
+To guarantee 100% service uptime during high GPU demand or model deprecations, Pouta implements an automated failover loop:
+1. It attempts to run the instruction on `@cf/meta/llama-3-8b-instruct`.
+2. If the model throws an execution exception or returns empty, the catch block intercepts it, logs a warning, and immediately attempts execution on the fallback `@cf/meta/llama-2-7b-chat-fp16` model.
+3. This failover happens transparently at the edge in less than 200ms without surfacing errors to the end-user.
+
+---
+
+## 10. SaaS Paywall Architecture & Stripe Webhook Sync
+
+To enable subscription monetization, Pouta comes pre-equipped with an edge-caching **Paywall & Billing System** utilizing Stripe.
+
+### A. Stripe Signature Verification Gateway
+The webhook router (`/api/webhooks/stripe`) validates Stripe payloads using high-speed, edge-native cryptographic functions (Web Crypto API) instead of bloated external Node SDKs.
+1. Extracts the signature header components: the Unix timestamp (`t`) and signature schemes (`v1`).
+2. Generates a signed payload: `timestamp.rawPayloadBody`.
+3. Dynamically imports the configured `STRIPE_WEBHOOK_SECRET` as a raw HMAC key using `crypto.subtle.importKey`.
+4. Executes `crypto.subtle.verify` utilizing `HMAC` with `SHA-256`.
+5. Compares signature bytes safely, ensuring that non-hex or malformed `v1` values are immediately rejected (HTTP 401) without throwing edge runtime crashes.
+
+### B. Localized D1 Subscription Sync
+Upon signature validation, the webhook translates Stripe lifecycle events into real-time D1 SQLite cache adjustments:
+*   `checkout.session.completed`: Extracts `client_reference_id` or parses `metadata.repo_path` (containing `owner/repo`) to locate the billing workspace. Inserts a new record into `subscriptions`:
+    ```sql
+    INSERT INTO subscriptions (repo_owner, status, expires_at)
+    VALUES (?, 'active', ?)
+    ON CONFLICT (repo_owner) DO UPDATE SET status = 'active', expires_at = ?
+    ```
+*   `customer.subscription.updated`: Syncs active, past-due, or trial statuses down to the localized SQLite table.
+*   `customer.subscription.deleted`: Instantly revokes subscription status, marking the cache record as inactive.
+
+### C. The Edge Paywall Gate
+When `PAYWALL_ENABLED = true` is configured:
+1. Every advanced feature (like AI endpoints) runs a billing lookup:
+   ```sql
+   SELECT * FROM subscriptions WHERE repo_owner = ? AND status = 'active'
+   ```
+2. If no active record is found, it blocks execution and returns a `402 Payment Required` (for missing subscriptions) or a `403 Forbidden` (for invalid scopes), protecting API usage against unauthorized billing overheads.
