@@ -331,7 +331,7 @@ sequenceDiagram
 
 ## 8. Multi-Tenant Serverless Image Pipeline (Cloudflare R2)
 
-Pouta manages image uploads and delivery at the Edge without third-party SaaS dependencies or Git repository bloat by utilizing **Cloudflare R2 Object Storage**.
+Pouta manages image uploads and delivery at the Edge without third-party SaaS dependencies or Git repository bloat by utilizing **Cloudflare R2 Object Storage** coupled with **Cloudflare Workers AI Vision** for automatic accessibility compliance.
 
 ```mermaid
 sequenceDiagram
@@ -339,6 +339,7 @@ sequenceDiagram
     participant Editor as "BlockNote Editor Canvas"
     participant API as "Edge API (/api/images/upload)"
     participant R2 as "Cloudflare R2 Bucket"
+    participant AI as "Workers AI Gateway"
     
     Writer->>Editor: Pastes / Drops Image File
     Editor->>API: POST multipart/form-data (File, repo_owner, repo_name)
@@ -346,8 +347,19 @@ sequenceDiagram
     API->>API: Validate file (< 5MB, safe image mime-type)
     API->>R2: PutObject (uploads/{owner}/{repo}/{uuid}-{name})
     R2-->>API: Confirm upload
-    API-->>Editor: Return full custom domain URL (R2_PUBLIC_URL_PREFIX)
-    Editor-->>Writer: Render image in editor canvas
+    opt AI is bound & active
+        API->>AI: Run Image Bytes + Prompt
+        AI->>AI: Attempt @cf/meta/llama-3.2-11b-vision-instruct
+        alt Llama 3.2 Vision fails
+            AI->>AI: Fallback to @cf/llava-hf/llava-1.5-7b-hf
+        end
+        AI-->>API: Return generated descriptive altText
+    end
+    alt AI fails / not bound
+        API->>API: Fallback to sanitized file name or 'uploaded image'
+    end
+    API-->>Editor: Return URL, storage key, and altText
+    Editor-->>Writer: Render image with alt text in canvas
 ```
 
 ### A. Size & Type Safety Constraints
@@ -368,6 +380,15 @@ Images are served directly bypassing the Astro Worker:
 *   **Custom Domain Routing**: An external CNAME or custom domain (e.g. `media.yourdomain.com`) is mapped directly to the R2 bucket in the Cloudflare dashboard.
 *   **URL Prefixing**: The API resolves the environment variable `R2_PUBLIC_URL_PREFIX` to prepend the absolute serving path to the client. This guarantees zero-egress charges, CDN-level caching, and instant file rendering.
 
+### D. AI-Powered Alt-Text Generation (Workers AI Vision)
+To achieve seamless Web Content Accessibility Guidelines (WCAG) compliance, uploaded image buffers are routed directly to Cloudflare Workers AI Vision:
+1. The raw uploaded binary file buffer is converted to a standard `Uint8Array` of image bytes.
+2. A specialized vision prompt is issued requesting a highly descriptive, concise HTML alt-text string (maximum 15 words) containing zero conversational preamble or markdown tags.
+3. The API first attempts execution using `@cf/meta/llama-3.2-11b-vision-instruct` (utilizing a structured Chat/Instruct messages payload).
+4. If Llama 3.2 Vision execution throws a runtime exception or returns empty, the controller catches the error, logs a warning, and executes a fallback pipeline utilizing the standard image-to-text model `@cf/llava-hf/llava-1.5-7b-hf`.
+5. The extracted alt-text is trimmed and cleaned of surrounding quotation marks.
+6. **Filename Fallback**: If Workers AI is not bound or completely fails, Pouta falls back to extracting alt-text by stripping extension tags and replacing hyphens and underscores with spaces from the original file name. If this resolves to empty, the absolute fallback `'uploaded image'` is applied.
+
 ---
 
 ## 9. Edge-Native Cloudflare Workers AI Pipeline
@@ -383,7 +404,7 @@ graph TD
     Paywall -->|5. Proceed| WorkersAI["Cloudflare Workers AI Binding"]
     WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3["Meta Llama-3-8b"]
     Llama3 -->|7. Success / Fail fallback| WorkersAI
-    WorkersAI -.->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
+    WorkersAI -.-->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
     WorkersAI -->|9. Raw Text Response| Parser["Clean & Validate Schema"]
     Parser -->|10. JSON Array / String| Client
 ```
