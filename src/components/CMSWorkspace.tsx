@@ -1798,7 +1798,10 @@ export default function CMSWorkspace() {
                             (e.target as HTMLImageElement).style.display = 'none';
                             const parent = (e.target as HTMLImageElement).parentElement;
                             if (parent) {
-                              parent.innerHTML += '<div class="media-thumb-error">⚠️</div>';
+                              const errEl = document.createElement('div');
+                              errEl.className = 'media-thumb-error';
+                              errEl.textContent = '⚠️';
+                              parent.appendChild(errEl);
                             }
                           }}
                         />
