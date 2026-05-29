@@ -1124,9 +1124,11 @@ export default function CMSWorkspace() {
  
            {/* Edge Autosave status */}
            {activeConfig && (
-             <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
-               <span className="status-dot"></span>
-               <span className="status-label">{saveStatus}</span>
+             <div className="status-pill-container">
+               <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
+                 <span className="status-dot"></span>
+                 <span className="status-label">{saveStatus}</span>
+               </div>
              </div>
            )}
  
@@ -2421,6 +2423,14 @@ export default function CMSWorkspace() {
         }
 
         /* Autosave indicators */
+        .status-pill-container {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          width: 145px;
+          flex-shrink: 0;
+        }
+
         .status-pill {
           display: flex;
           align-items: center;
@@ -2432,6 +2442,7 @@ export default function CMSWorkspace() {
           font-size: 0.8rem;
           font-weight: 500;
           transition: all 0.3s ease;
+          white-space: nowrap;
         }
 
         .status-dot {
@@ -3433,6 +3444,7 @@ export default function CMSWorkspace() {
 
           /* Hide status pill text, show only dot */
           .status-label { display: none; }
+          .status-pill-container { width: auto; }
           .status-pill { padding: 0.4rem 0.55rem; }
 
           /* Hide full username, keep avatar */
