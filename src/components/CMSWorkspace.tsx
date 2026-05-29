@@ -32,6 +32,34 @@ interface DocumentDraft {
   updated_at: string;
 }
 
+interface HydratedDocument {
+  id: string;
+  type: string;
+  slug: string;
+  title: string;
+  status: string;
+  content_json: string;
+  metadata_json: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
+  if (typeof doc !== 'object' || doc === null) {
+    return false;
+  }
+  const d = doc as Record<string, unknown>;
+  return (
+    typeof d.id === 'string' &&
+    typeof d.type === 'string' &&
+    typeof d.slug === 'string' &&
+    typeof d.title === 'string' &&
+    typeof d.status === 'string' &&
+    typeof d.content_json === 'string' &&
+    typeof d.metadata_json === 'string'
+  );
+}
+
 export default function CMSWorkspace() {
   // Auth state
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -69,6 +97,7 @@ export default function CMSWorkspace() {
   const [blocks, setBlocks] = useState<any[]>([]);
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [status, setStatus] = useState('draft');
+  const [isDraftHydrated, setIsDraftHydrated] = useState<boolean>(false);
 
   // UI status feedback
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Saving...' | 'Unsaved Changes' | 'Error' | 'Idle'>('Idle');
@@ -296,7 +325,13 @@ export default function CMSWorkspace() {
         
         // If drafts exist, load the latest updated one automatically
         if (data.documents.length > 0) {
-          handleLoadDraftInWorkspace(data.documents[0].id, data.documents);
+          const firstDoc: unknown = data.documents[0];
+          if (isFullyHydratedDocument(firstDoc)) {
+            handleLoadDraftInWorkspace(firstDoc.id, data.documents);
+          } else {
+            setIsDraftHydrated(false);
+            fetchFullDocumentDetail(firstDoc.id);
+          }
         } else {
           // If no drafts exist, prepare a fresh draft
           handleCreateNewDraft();
@@ -309,42 +344,69 @@ export default function CMSWorkspace() {
     }
   };
 
+  // Load full document details from D1 if they are missing from list
+  const fetchFullDocumentDetail = async (draftId: string) => {
+    try {
+      const response = await fetch(`/api/content/list?repo=${encodeURIComponent(selectedRepo)}`);
+      const data = await response.json();
+      if (data.success && data.documents) {
+        setDrafts(data.documents);
+        const matched: unknown = data.documents.find((d: any) => d.id === draftId);
+        if (isFullyHydratedDocument(matched)) {
+          setSaveStatus('Idle');
+          setDocId(matched.id);
+          setActiveType(matched.type);
+          setTitle(matched.title);
+          setSlug(matched.slug);
+          setStatus(matched.status);
 
-  // Wait! Let's check how to load details from the active drafts list.
-  // To keep it 100% robust, let's make an edge call or let's update `list.ts` to return the full columns so the client has all raw document details in memory! That is extremely fast and robust for standard headless authors.
-  // Actually, let's write a details query. Let's fetch the full document details by making a GET request to `/api/content/list?repo=${selectedRepo}` but returning full columns or adding an endpoint.
-  // Wait! Let's check what our `src/pages/api/content/list.ts` does:
-  // `SELECT id, type, slug, title, status, created_at, updated_at FROM documents WHERE repo_owner = ? AND repo_name = ?`
-  // If we modify `list.ts` to query `SELECT * FROM documents ...`, the React component will have full details of `content_json` and `metadata_json` right in memory!
-  // This is extremely simple, powerful, and requires no extra endpoint! Let's check how many documents a user typically has. A few dozen drafts. Returning the full JSON for a few dozen drafts is a few hundred KB—completely lightweight for web apps!
-  // But wait! If we want to be 100% correct, let's look at `list.ts` again.
-  // Let's modify `list.ts` later or let's modify it now. Actually, let's write a `CMSWorkspace.tsx` that expects `list.ts` to return the full columns so it can load them instantly in memory without extra network latency!
-  // Yes! If `list.ts` returns the full columns (`SELECT * FROM documents...`), our React state manager can switch between drafts instantly with 0ms delay! That provides a stunning, high-end, premium desktop-like user experience (UX) that will absolutely WOW the user!
-  // Let's do that! Let's write `CMSWorkspace.tsx` to handle full columns from the drafts list, and then we will update `list.ts` to return `SELECT * FROM documents...` instead of only the summary columns.
+          try {
+            setBlocks(JSON.parse(matched.content_json));
+          } catch (e) {
+            setBlocks([]);
+          }
 
-  // Let's continue writing `CMSWorkspace.tsx`:
+          try {
+            setMetadata(JSON.parse(matched.metadata_json));
+          } catch (e) {
+            setMetadata({});
+          }
+          setIsDraftHydrated(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch full document details:', err);
+    }
+  };
+
   const handleLoadDraftInWorkspace = (draftId: string, currentDraftsList?: DocumentDraft[]) => {
     const listToSearch = currentDraftsList || draftsRef.current;
-    const matched = listToSearch.find((d: any) => d.id === draftId) as any;
+    const matched: unknown = listToSearch.find((d) => d.id === draftId);
     if (!matched) return;
 
-    setSaveStatus('Idle');
-    setDocId(matched.id);
-    setActiveType(matched.type);
-    setTitle(matched.title);
-    setSlug(matched.slug);
-    setStatus(matched.status);
+    if (isFullyHydratedDocument(matched)) {
+      setSaveStatus('Idle');
+      setDocId(matched.id);
+      setActiveType(matched.type);
+      setTitle(matched.title);
+      setSlug(matched.slug);
+      setStatus(matched.status);
 
-    try {
-      setBlocks(JSON.parse(matched.content_json));
-    } catch (e) {
-      setBlocks([]);
-    }
+      try {
+        setBlocks(JSON.parse(matched.content_json));
+      } catch (e) {
+        setBlocks([]);
+      }
 
-    try {
-      setMetadata(JSON.parse(matched.metadata_json));
-    } catch (e) {
-      setMetadata({});
+      try {
+        setMetadata(JSON.parse(matched.metadata_json));
+      } catch (e) {
+        setMetadata({});
+      }
+      setIsDraftHydrated(true);
+    } else {
+      setIsDraftHydrated(false);
+      fetchFullDocumentDetail(draftId);
     }
   };
 
@@ -427,6 +489,7 @@ export default function CMSWorkspace() {
         content: []
       }
     ]);
+    setIsDraftHydrated(true);
   };
 
   const newTypeLabel = (type: string) => {
@@ -447,6 +510,7 @@ export default function CMSWorkspace() {
         content: []
       }
     ]);
+    setIsDraftHydrated(true);
   };
 
   // Auto-generate Slug on Title change
@@ -822,7 +886,7 @@ export default function CMSWorkspace() {
 
   // Dynamic D1 isolated Autosave debouncer
   useEffect(() => {
-    if (!user || !user.authenticated || !docId || !selectedRepo || !activeType) return;
+    if (!user || !user.authenticated || !docId || !selectedRepo || !activeType || !isDraftHydrated) return;
 
     setSaveStatus('Unsaved Changes');
 
@@ -866,7 +930,7 @@ export default function CMSWorkspace() {
     }, 1200);
 
     return () => clearTimeout(debounceTimer);
-  }, [title, slug, blocks, metadata, activeType, selectedRepo, selectedBranch, status, user, githubInstallationId]);
+  }, [title, slug, blocks, metadata, activeType, selectedRepo, selectedBranch, status, user, githubInstallationId, isDraftHydrated]);
 
   // Refresh lists silently to preserve editor focus
   const refreshDraftListSilence = async () => {

@@ -349,6 +349,8 @@ describe('Images List API', () => {
     const data = await response.json();
     expect(data.images[0].name).toBe('dated2.png');
     expect(data.images[1].name).toBe('dated1.png');
+    expect(data.images[2].name).toBe('no-date1.png');
+    expect(data.images[3].name).toBe('no-date2.png');
   });
 
 
