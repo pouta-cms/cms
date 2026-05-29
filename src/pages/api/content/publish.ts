@@ -35,30 +35,69 @@ function escapeMarkdown(text: string): string {
     .replace(/~/g, '\\~');
 }
 
+interface Block {
+  type: string;
+  content?: unknown;
+  props?: {
+    level?: number;
+    checked?: boolean;
+    language?: string;
+    url?: string;
+    name?: string;
+    caption?: string;
+    [key: string]: any;
+  };
+  children?: Block[];
+}
+
+interface InlineContent {
+  type: string;
+  text?: string;
+  href?: string;
+  styles?: {
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    strike?: boolean;
+    code?: boolean;
+  };
+  content?: InlineContent[];
+}
+
+function isBlock(value: unknown): value is Block {
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof (value as Record<string, any>).type === 'string';
+}
+
 // BlockNote JSON structure converter to Markdown
-function blockToMarkdown(block: any): string {
+function blockToMarkdown(block: Block): string {
   let md = '';
   const blockType = block.type;
   const content = block.content;
 
   // Helper to extract text with style formatting
-  const getText = (contentArr: any[]): string => {
-    if (!contentArr || !Array.isArray(contentArr)) return '';
-    return contentArr
-      .map((item: any) => {
+  const getText = (contentArr: unknown): string => {
+    if (!Array.isArray(contentArr)) return '';
+    const arr = contentArr as InlineContent[];
+    return arr
+      .map((item) => {
         if (item.type === 'text') {
           let text = item.text || '';
-          if (item.styles) {
-            if (item.styles.bold) text = `**${text}**`;
-            if (item.styles.italic) text = `*${text}*`;
-            if (item.styles.underline) text = `<u>${text}</u>`;
-            if (item.styles.strike) text = `~~${text}~~`;
-            if (item.styles.code) text = `\`${text}\``;
+          const styles = item.styles;
+          if (styles) {
+            if (styles.bold) text = `**${text}**`;
+            if (styles.italic) text = `*${text}*`;
+            if (styles.underline) text = `<u>${text}</u>`;
+            if (styles.strike) text = `~~${text}~~`;
+            if (styles.code) text = `\`${text}\``;
           }
           return text;
         } else if (item.type === 'link') {
-          const linkText = item.content ? getText(item.content) : item.href;
-          return `[${linkText}](${item.href})`;
+          let linkText = item.href || '';
+          if (item.content) {
+            linkText = getText(item.content);
+          }
+          return `[${linkText}](${item.href || ''})`;
         }
         return '';
       })
@@ -128,11 +167,17 @@ function blockToMarkdown(block: any): string {
   return md;
 }
 
-function blocksToMarkdown(blocks: any[]): string {
+function blocksToMarkdown(blocks: unknown): string {
   if (!Array.isArray(blocks)) return '';
+  const validBlocks: Block[] = [];
+  for (const item of blocks) {
+    if (isBlock(item)) {
+      validBlocks.push(item);
+    }
+  }
   let result = '';
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
+  for (let i = 0; i < validBlocks.length; i++) {
+    const block = validBlocks[i];
     const blockStr = blockToMarkdown(block);
 
     if (block.type === 'heading' && result.length > 0) {
@@ -314,7 +359,7 @@ export const POST: APIRoute = async ({ request }) => {
     const resolvedPath = resolveWritePath(typeConfig.writePath, doc.slug, metadata, doc.created_at);
 
     // 7. Parse content blocks
-    let blocks = [];
+    let blocks: unknown = [];
     try {
       blocks = JSON.parse(doc.content_json);
     } catch (e) {
