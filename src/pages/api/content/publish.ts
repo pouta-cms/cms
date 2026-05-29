@@ -35,30 +35,84 @@ function escapeMarkdown(text: string): string {
     .replace(/~/g, '\\~');
 }
 
+interface Block {
+  type: string;
+  content?: unknown;
+  props?: {
+    level?: number;
+    checked?: boolean;
+    language?: string;
+    url?: string;
+    name?: string;
+    caption?: string;
+    [key: string]: unknown;
+  };
+  children?: Block[];
+}
+
+function isBlock(value: unknown): value is Block {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.type !== 'string') return false;
+
+  if ('props' in candidate && candidate.props !== undefined) {
+    if (typeof candidate.props !== 'object' || candidate.props === null) return false;
+    const props = candidate.props as Record<string, unknown>;
+    if ('level' in props && props.level !== undefined && typeof props.level !== 'number') return false;
+    if ('checked' in props && props.checked !== undefined && typeof props.checked !== 'boolean') return false;
+    if ('language' in props && props.language !== undefined && typeof props.language !== 'string') return false;
+    if ('url' in props && props.url !== undefined && typeof props.url !== 'string') return false;
+    if ('name' in props && props.name !== undefined && typeof props.name !== 'string') return false;
+    if ('caption' in props && props.caption !== undefined && typeof props.caption !== 'string') return false;
+  }
+
+  if ('children' in candidate && candidate.children !== undefined) {
+    if (!Array.isArray(candidate.children)) return false;
+    for (const child of candidate.children) {
+      if (!isBlock(child)) return false;
+    }
+  }
+
+  return true;
+}
+
 // BlockNote JSON structure converter to Markdown
-function blockToMarkdown(block: any): string {
+function blockToMarkdown(block: Block): string {
   let md = '';
   const blockType = block.type;
   const content = block.content;
 
   // Helper to extract text with style formatting
-  const getText = (contentArr: any[]): string => {
-    if (!contentArr || !Array.isArray(contentArr)) return '';
+  const getText = (contentArr: unknown): string => {
+    if (!Array.isArray(contentArr)) return '';
     return contentArr
-      .map((item: any) => {
-        if (item.type === 'text') {
-          let text = item.text || '';
-          if (item.styles) {
-            if (item.styles.bold) text = `**${text}**`;
-            if (item.styles.italic) text = `*${text}*`;
-            if (item.styles.underline) text = `<u>${text}</u>`;
-            if (item.styles.strike) text = `~~${text}~~`;
-            if (item.styles.code) text = `\`${text}\``;
+      .map((item: unknown) => {
+        if (typeof item !== 'object' || item === null) return '';
+        const obj = item as Record<string, unknown>;
+        if (typeof obj.type !== 'string') return '';
+
+        if (obj.type === 'text') {
+          let text = typeof obj.text === 'string' ? obj.text : '';
+          const styles = obj.styles;
+          if (styles && typeof styles === 'object') {
+            const stylesObj = styles as Record<string, unknown>;
+            if (stylesObj.bold) text = `**${text}**`;
+            if (stylesObj.italic) text = `*${text}*`;
+            if (stylesObj.underline) text = `<u>${text}</u>`;
+            if (stylesObj.strike) text = `~~${text}~~`;
+            if (stylesObj.code) text = `\`${text}\``;
           }
           return text;
-        } else if (item.type === 'link') {
-          const linkText = item.content ? getText(item.content) : item.href;
-          return `[${linkText}](${item.href})`;
+        } else if (obj.type === 'link') {
+          let linkText = typeof obj.href === 'string' ? obj.href : '';
+          if ('content' in obj && obj.content !== undefined) {
+            linkText = getText(obj.content);
+          }
+          const href = typeof obj.href === 'string' ? obj.href : '';
+          if (href) {
+            return `[${linkText}](${href})`;
+          }
+          return linkText;
         }
         return '';
       })
@@ -113,28 +167,42 @@ function blockToMarkdown(block: any): string {
   }
 
   // Handle nested lists recursively
-  if (block.children && Array.isArray(block.children) && block.children.length > 0) {
-    const childMd = block.children
-      .map((child: any) => {
-        const childStr = blockToMarkdown(child);
-        if (['bulletListItem', 'numberedListItem', 'checkListItem'].includes(blockType)) {
-          return childStr
-            .split('\n')
-            .map((line) => (line ? `  ${line}` : ''))
-            .join('\n');
-        }
-        return childStr;
-      })
-      .join('');
-    md += childMd;
+  if (block.children && block.children.length > 0) {
+    const childMd = blocksToMarkdown(block.children);
+    if (['bulletListItem', 'numberedListItem', 'checkListItem'].includes(blockType)) {
+      md += childMd
+        .split('\n')
+        .map((line) => (line ? `  ${line}` : ''))
+        .join('\n');
+    } else {
+      md += childMd;
+    }
   }
 
   return md;
 }
 
-function blocksToMarkdown(blocks: any[]): string {
-  if (!blocks || !Array.isArray(blocks)) return '';
-  return blocks.map(blockToMarkdown).join('');
+function blocksToMarkdown(blocks: unknown): string {
+  if (!Array.isArray(blocks)) return '';
+  const validBlocks: Block[] = [];
+  for (const item of blocks) {
+    if (isBlock(item)) {
+      validBlocks.push(item);
+    }
+  }
+  let result = '';
+  for (let i = 0; i < validBlocks.length; i++) {
+    const block = validBlocks[i];
+    const blockStr = blockToMarkdown(block);
+
+    if (block.type === 'heading' && result.length > 0) {
+      if (!result.endsWith('\n\n')) {
+        result += '\n';
+      }
+    }
+    result += blockStr;
+  }
+  return result;
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -306,7 +374,7 @@ export const POST: APIRoute = async ({ request }) => {
     const resolvedPath = resolveWritePath(typeConfig.writePath, doc.slug, metadata, doc.created_at);
 
     // 7. Parse content blocks
-    let blocks = [];
+    let blocks: unknown = [];
     try {
       blocks = JSON.parse(doc.content_json);
     } catch (e) {

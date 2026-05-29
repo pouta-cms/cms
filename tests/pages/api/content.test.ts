@@ -454,8 +454,9 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
 
       const mockConfig = { contentTypes: [{ type: 'post', writePath: 'src/pages/posts/{slug}.md', fields: [] }] };
 
+      let putBody = '';
       let fetchCount = 0;
-      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
         fetchCount++;
         if (fetchCount === 1) {
           return { ok: true, json: async () => ({ content: btoa(JSON.stringify(mockConfig)) }) } as Response;
@@ -464,6 +465,9 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
           return { ok: true, json: async () => ({ sha: 'abcdef123456' }) } as Response;
         }
         if (fetchCount === 3) {
+          if (init && init.body) {
+            putBody = JSON.parse(init.body as string).content;
+          }
           return { ok: true } as Response;
         }
         return { ok: false } as Response;
@@ -481,6 +485,80 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
 
       const response = await publishPOST(context);
       expect(response.status).toBe(200);
+
+      const commitContent = atob(putBody);
+      expect(commitContent).toContain('title: "Hello Post"');
+      expect(commitContent).toContain('status: "published"');
+      const parts = commitContent.split('---\n');
+      const bodyPart = parts[parts.length - 1].trim();
+      expect(bodyPart).toBe('');
+
+      verifySpy.mockRestore();
+      collabSpy.mockRestore();
+      tokenSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
+    it('returns 200 and publishes empty body if content_json is null', async () => {
+      const verifySpy = vi.spyOn(auth, 'verifySession').mockResolvedValue('token');
+      const collabSpy = vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
+      const tokenSpy = vi.spyOn(githubApp, 'getInstallationAccessToken').mockResolvedValue('inst_token');
+
+      const mockDoc = {
+        id: 'doc-1',
+        type: 'post',
+        slug: 'hello',
+        title: 'Hello Post',
+        metadata_json: JSON.stringify({}),
+        content_json: 'null',
+        repo_owner: 'owner',
+        repo_name: 'repo',
+        repo_branch: 'main',
+        github_installation_id: '123',
+        created_at: '2026-05-29T10:00:00Z',
+      };
+      mockDb.first.mockResolvedValueOnce(mockDoc);
+
+      const mockConfig = { contentTypes: [{ type: 'post', writePath: 'src/pages/posts/{slug}.md', fields: [] }] };
+
+      let putBody = '';
+      let fetchCount = 0;
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+        fetchCount++;
+        if (fetchCount === 1) {
+          return { ok: true, json: async () => ({ content: btoa(JSON.stringify(mockConfig)) }) } as Response;
+        }
+        if (fetchCount === 2) {
+          return { ok: true, json: async () => ({ sha: 'abcdef123456' }) } as Response;
+        }
+        if (fetchCount === 3) {
+          if (init && init.body) {
+            putBody = JSON.parse(init.body as string).content;
+          }
+          return { ok: true } as Response;
+        }
+        return { ok: false } as Response;
+      });
+
+      mockDb.run.mockResolvedValueOnce({ success: true });
+
+      const context = {
+        request: new Request('https://cms.pouta.local/api/content/publish', {
+          method: 'POST',
+          headers: { Cookie: 'pouta_session=valid-session-cookie' },
+          body: JSON.stringify({ id: 'doc-1' }),
+        }),
+      } as any;
+
+      const response = await publishPOST(context);
+      expect(response.status).toBe(200);
+
+      const commitContent = atob(putBody);
+      expect(commitContent).toContain('title: "Hello Post"');
+      expect(commitContent).toContain('status: "published"');
+      const parts = commitContent.split('---\n');
+      const bodyPart = parts[parts.length - 1].trim();
+      expect(bodyPart).toBe('');
 
       verifySpy.mockRestore();
       collabSpy.mockRestore();
@@ -972,7 +1050,7 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
             { type: 'text', text: 'strike ', styles: { strike: true } },
             { type: 'text', text: 'code ', styles: { code: true } },
             { type: 'link', href: 'https://link.url', content: [{ type: 'text', text: 'link text' }] },
-            { type: 'link', href: 'https://nocontent.url' },
+            { type: 'link', content: [{ type: 'text', text: 'No Href Link' }] },
             { type: 'unknown_inline_type' }
           ] },
           {
@@ -982,7 +1060,48 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
               { type: 'paragraph', content: [{ type: 'text', text: 'Child paragraph' }] }
             ]
           },
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'link',
+                href: 'https://parent.url',
+                content: [
+                  { type: 'link', href: 'https://child.url' },
+                  { type: 'unknown_inline_type' }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Non-array children parent' }],
+            children: { length: 1 }
+          },
+          null,
+          {},
+          123,
+          { type: 'paragraph', props: 123 },
+          { type: 'paragraph', props: null },
+          { type: 'heading', props: { level: 'invalid' } },
+          { type: 'checkListItem', props: { checked: 'invalid' } },
+          { type: 'codeBlock', props: { language: 123 } },
+          { type: 'image', props: { url: 123 } },
+          { type: 'image', props: { name: 123 } },
+          { type: 'image', props: { caption: 123 } },
+          { type: 'bulletListItem', children: 123 },
+          { type: 'bulletListItem', children: [123] },
+          {
+            type: 'paragraph',
+            content: [
+              null,
+              {},
+              123,
+              { type: 'text', text: 'Styling invalid text', styles: 123 }
+            ]
+          },
           { type: 'bulletListItem', content: [{ type: 'text', text: 'Bullet item' }] },
+          { type: 'heading', props: { level: 3 }, content: [{ type: 'text', text: 'Heading After Bullet' }] },
           {
             type: 'bulletListItem',
             content: [{ type: 'text', text: 'Parent bullet' }],
