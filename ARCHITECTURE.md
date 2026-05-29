@@ -94,9 +94,9 @@ Pouta performs GFM file writing via **GitHub App Installation Access Tokens** in
 
 ```mermaid
 sequenceDiagram
-    participant Pouta as Pouta Edge API
-    participant Subtle as Web Crypto (SubtleCrypto)
-    participant GH as GitHub API Gateway
+    participant Pouta as "Pouta Edge API"
+    participant Subtle as "Web Crypto (SubtleCrypto)"
+    participant GH as "GitHub API Gateway"
 
     Note over Pouta, Subtle: 1. Import PKCS#8 RSA Key
     Pouta->>Subtle: base64UrlDecode(GITHUB_APP_PRIVATE_KEY_B64)
@@ -273,10 +273,10 @@ This diagram displays the user's initial sign-in and the loading of their reposi
 
 ```mermaid
 sequenceDiagram
-    actor Writer as Writer (User)
-    participant UI as CMS React Dashboard
-    participant API as Edge API (/api/auth)
-    participant GH as GitHub Gateway
+    actor Writer as "Writer (User)"
+    participant UI as "CMS React Dashboard"
+    participant API as "Edge API (/api/auth)"
+    participant GH as "GitHub Gateway"
 
     Writer->>UI: Clicks "Sign in with GitHub"
     UI->>API: GET /login
@@ -297,11 +297,11 @@ This diagram displays the autosave draft cycle and the final Git publishing comm
 
 ```mermaid
 sequenceDiagram
-    actor Writer as Writer (User)
-    participant UI as CMS React Dashboard
-    participant API as Edge API (/api/content)
-    participant D1 as D1 SQLite DB
-    participant GH as GitHub Gateway
+    actor Writer as "Writer (User)"
+    participant UI as "CMS React Dashboard"
+    participant API as "Edge API (/api/content)"
+    participant D1 as "D1 SQLite DB"
+    participant GH as "GitHub Gateway"
 
     Note over Writer, D1: 1. The Draft Autosave Cycle
     Writer->>UI: Typings in Canvas Editor
@@ -331,23 +331,35 @@ sequenceDiagram
 
 ## 8. Multi-Tenant Serverless Image Pipeline (Cloudflare R2)
 
-Pouta manages image uploads and delivery at the Edge without third-party SaaS dependencies or Git repository bloat by utilizing **Cloudflare R2 Object Storage**.
+Pouta manages image uploads and delivery at the Edge without third-party SaaS dependencies or Git repository bloat by utilizing **Cloudflare R2 Object Storage** coupled with **Cloudflare Workers AI Vision** for automatic accessibility compliance.
 
 ```mermaid
 sequenceDiagram
-    actor Writer as Writer (User)
-    participant Editor as BlockNote Editor Canvas
-    participant API as Edge API (/api/images/upload)
-    participant R2 as Cloudflare R2 Bucket
+    actor Writer as "Writer (User)"
+    participant Editor as "BlockNote Editor Canvas"
+    participant API as "Edge API (/api/images/upload)"
+    participant R2 as "Cloudflare R2 Bucket"
+    participant AI as "Workers AI Gateway"
     
     Writer->>Editor: Pastes / Drops Image File
     Editor->>API: POST multipart/form-data (File, repo_owner, repo_name)
     API->>API: Verify session & collaborator push access
-    API->>API: Validate file (< 5MB, safe image mime-type)
+    API->>API: Validate file (less than 5MB, safe image mime-type)
     API->>R2: PutObject (uploads/{owner}/{repo}/{uuid}-{name})
     R2-->>API: Confirm upload
-    API-->>Editor: Return full custom domain URL (R2_PUBLIC_URL_PREFIX)
-    Editor-->>Writer: Render image in editor canvas
+    opt AI is bound & active
+        API->>AI: Run Image Bytes + Prompt
+        AI->>AI: Attempt @cf/meta/llama-3.2-11b-vision-instruct
+        alt Llama 3.2 Vision fails
+            AI->>AI: Fallback to @cf/llava-hf/llava-1.5-7b-hf
+        end
+        AI-->>API: Return generated descriptive altText
+    end
+    alt AI fails / not bound
+        API->>API: Fallback to sanitized file name or 'uploaded image'
+    end
+    API-->>Editor: Return URL, storage key, and altText
+    Editor-->>Writer: Render image with alt text in canvas
 ```
 
 ### A. Size & Type Safety Constraints
@@ -368,3 +380,76 @@ Images are served directly bypassing the Astro Worker:
 *   **Custom Domain Routing**: An external CNAME or custom domain (e.g. `media.yourdomain.com`) is mapped directly to the R2 bucket in the Cloudflare dashboard.
 *   **URL Prefixing**: The API resolves the environment variable `R2_PUBLIC_URL_PREFIX` to prepend the absolute serving path to the client. This guarantees zero-egress charges, CDN-level caching, and instant file rendering.
 
+### D. AI-Powered Alt-Text Generation (Workers AI Vision)
+To achieve seamless Web Content Accessibility Guidelines (WCAG) compliance, uploaded image buffers are routed directly to Cloudflare Workers AI Vision:
+1. The raw uploaded binary file buffer is converted to a standard `Uint8Array` of image bytes.
+2. A specialized vision prompt is issued requesting a highly descriptive, concise HTML alt-text string (maximum 15 words) containing zero conversational preamble or markdown tags.
+3. The API first attempts execution using `@cf/meta/llama-3.2-11b-vision-instruct` (utilizing a structured Chat/Instruct messages payload).
+4. If Llama 3.2 Vision execution throws a runtime exception or returns empty, the controller catches the error, logs a warning, and executes a fallback pipeline utilizing the standard image-to-text model `@cf/llava-hf/llava-1.5-7b-hf`.
+5. The extracted alt-text is trimmed and cleaned of surrounding quotation marks.
+6. **Filename Fallback**: If Workers AI is not bound or completely fails, Pouta falls back to extracting alt-text by stripping extension tags and replacing hyphens and underscores with spaces from the original file name. If this resolves to empty, the absolute fallback `'uploaded image'` is applied.
+
+---
+
+## 9. Edge-Native Cloudflare Workers AI Pipeline
+
+Pouta integrates context-aware AI capabilities directly at the Edge using **Cloudflare Workers AI**. Rather than pulling in high-latency, third-party LLM APIs, it utilizes local serverless models executing on Cloudflare's global GPU network.
+
+```mermaid
+graph TD
+    Client["React CMS Dashboard"] -->|1. POST Request| API["Edge AI Endpoint"]
+    API -->|2. Paywall Gate check| Paywall["Paywall Validator"]
+    Paywall -->|3. Query active subscription| D1["D1 SQLite Cache"]
+    D1 -->|4. Active / Bypassed| Paywall
+    Paywall -->|5. Proceed| WorkersAI["Cloudflare Workers AI Binding"]
+    WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3["Meta Llama-3-8b"]
+    Llama3 -->|7. Success / Fail fallback| WorkersAI
+    WorkersAI -->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
+    WorkersAI -->|9. Raw Text Response| Parser["Clean & Validate Schema"]
+    Parser -->|10. JSON Array / String| Client
+```
+
+### A. Multi-Modal AI Content Operations
+*   **AI Assist (`/api/content/ai-assist`)**: Performs inline text generation, correction, expansion, or summarization based on the current ProseMirror block selection and custom prompts.
+*   **SEO Description Generator (`/api/content/generate-description`)**: Analyzes the title and main content to compile an optimized SEO meta-description between 120 and 160 characters.
+*   **Catchy Headline Recommender (`/api/content/generate-headlines`)**: Dynamically reads content semantics to suggest three alternative catchy, optimized headlines.
+*   **Tag & Category Extractor (`/api/content/generate-categories`)**: Suggests 3 to 5 highly relevant, concise, lowercase category tags, filtering out any extraneous text, introductory markdown, or conversational LLM padding.
+
+### B. Edge-Level Resiliency & Fallback Strategy
+To guarantee 100% service uptime during high GPU demand or model deprecations, Pouta implements an automated failover loop:
+1. It attempts to run the instruction on `@cf/meta/llama-3-8b-instruct`.
+2. If the model throws an execution exception or returns empty, the catch block intercepts it, logs a warning, and immediately attempts execution on the fallback `@cf/meta/llama-2-7b-chat-fp16` model.
+3. This failover happens transparently at the edge in less than 200ms without surfacing errors to the end-user.
+
+---
+
+## 10. SaaS Paywall Architecture & Stripe Webhook Sync
+
+To enable subscription monetization, Pouta comes pre-equipped with an edge-caching **Paywall & Billing System** utilizing Stripe.
+
+### A. Stripe Signature Verification Gateway
+The webhook router (`/api/webhooks/stripe`) validates Stripe payloads using high-speed, edge-native cryptographic functions (Web Crypto API) instead of bloated external Node SDKs.
+1. Extracts the signature header components: the Unix timestamp (`t`) and signature schemes (`v1`).
+2. Generates a signed payload: `timestamp.rawPayloadBody`.
+3. Dynamically imports the configured `STRIPE_WEBHOOK_SECRET` as a raw HMAC key using `crypto.subtle.importKey`.
+4. Executes `crypto.subtle.verify` utilizing `HMAC` with `SHA-256`.
+5. Compares signature bytes safely, ensuring that non-hex or malformed `v1` values are immediately rejected (HTTP 401) without throwing edge runtime crashes.
+
+### B. Localized D1 Subscription Sync
+Upon signature validation, the webhook translates Stripe lifecycle events into real-time D1 SQLite cache adjustments:
+*   `checkout.session.completed`: Extracts `client_reference_id` or parses `metadata.repo_path` (containing `owner/repo`) to locate the billing workspace. Inserts a new record into `subscriptions`:
+    ```sql
+    INSERT INTO subscriptions (repo_owner, status, expires_at)
+    VALUES (?, 'active', ?)
+    ON CONFLICT (repo_owner) DO UPDATE SET status = 'active', expires_at = ?
+    ```
+*   `customer.subscription.updated`: Syncs active, past-due, or trial statuses down to the localized SQLite table.
+*   `customer.subscription.deleted`: Instantly revokes subscription status, marking the cache record as inactive.
+
+### C. The Edge Paywall Gate
+When `PAYWALL_ENABLED = true` is configured:
+1. Every advanced feature (like AI endpoints) runs a billing lookup:
+   ```sql
+   SELECT * FROM subscriptions WHERE repo_owner = ? AND status = 'active'
+   ```
+2. If no active record is found, it blocks execution and returns a `402 Payment Required` (for missing subscriptions) or a `403 Forbidden` (for invalid scopes), protecting API usage against unauthorized billing overheads.
