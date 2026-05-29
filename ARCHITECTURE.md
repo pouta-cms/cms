@@ -344,7 +344,7 @@ sequenceDiagram
     Writer->>Editor: Pastes / Drops Image File
     Editor->>API: POST multipart/form-data (File, repo_owner, repo_name)
     API->>API: Verify session & collaborator push access
-    API->>API: Validate file (< 5MB, safe image mime-type)
+    API->>API: Validate file (less than 5MB, safe image mime-type)
     API->>R2: PutObject (uploads/{owner}/{repo}/{uuid}-{name})
     R2-->>API: Confirm upload
     opt AI is bound & active
@@ -404,7 +404,7 @@ graph TD
     Paywall -->|5. Proceed| WorkersAI["Cloudflare Workers AI Binding"]
     WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3["Meta Llama-3-8b"]
     Llama3 -->|7. Success / Fail fallback| WorkersAI
-    WorkersAI -.-->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
+    WorkersAI -->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
     WorkersAI -->|9. Raw Text Response| Parser["Clean & Validate Schema"]
     Parser -->|10. JSON Array / String| Client
 ```
