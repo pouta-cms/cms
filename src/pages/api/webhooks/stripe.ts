@@ -61,7 +61,7 @@ async function verifyStripeSignature(
         return false;
       }
       const signatureBytes = new Uint8Array(
-        cleanSig.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
+        matches.map((byte) => parseInt(byte, 16))
       );
 
       const isSigValid = await crypto.subtle.verify(
