@@ -1070,6 +1070,86 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       fetchSpy.mockRestore();
     });
 
+    it('correctly escapes backslashes and double quotes in frontmatter values during publish', async () => {
+      const verifySpy = vi.spyOn(auth, 'verifySession').mockResolvedValue('token');
+      const collabSpy = vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
+      const tokenSpy = vi.spyOn(githubApp, 'getInstallationAccessToken').mockResolvedValue('inst_token');
+
+      // Document with backslashes and double quotes in title
+      const mockDoc = {
+        id: 'doc-escaped',
+        type: 'post',
+        slug: 'escaping-test',
+        title: 'Title with \\Backslash\\ and "Quotes"',
+        metadata_json: JSON.stringify({
+          description: 'A description with \\ and " inside.'
+        }),
+        content_json: JSON.stringify([
+          { type: 'paragraph', content: [{ type: 'text', text: 'Normal text' }] }
+        ]),
+        repo_owner: 'owner',
+        repo_name: 'repo',
+        repo_branch: 'main',
+        github_installation_id: '123',
+        created_at: '2026-05-29T10:00:00Z',
+      };
+      mockDb.first.mockResolvedValueOnce(mockDoc);
+
+      const mockConfig = {
+        contentTypes: [
+          {
+            type: 'post',
+            writePath: 'src/pages/posts/{slug}.md',
+            fields: [
+              { name: 'description', type: 'string' }
+            ],
+          },
+        ],
+      };
+
+      let putBody = '';
+      let fetchCount = 0;
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+        fetchCount++;
+        if (fetchCount === 1) {
+          return { ok: true, json: async () => ({ content: btoa(JSON.stringify(mockConfig)) }) } as Response;
+        }
+        if (fetchCount === 2) {
+          return { ok: true, json: async () => ({ sha: 'abcdef123456' }) } as Response;
+        }
+        if (fetchCount === 3) {
+          if (init && init.body) {
+            putBody = JSON.parse(init.body as string).content;
+          }
+          return { ok: true } as Response;
+        }
+        return { ok: false } as Response;
+      });
+
+      mockDb.run.mockResolvedValueOnce({ success: true });
+
+      const context = {
+        request: new Request('https://cms.pouta.local/api/content/publish', {
+          method: 'POST',
+          headers: { Cookie: 'pouta_session=valid-session-cookie' },
+          body: JSON.stringify({ id: 'doc-escaped' }),
+        }),
+      } as any;
+
+      const response = await publishPOST(context);
+      expect(response.status).toBe(200);
+
+      // Decode the generated commit content and check frontmatter escaping
+      const commitContent = atob(putBody);
+      expect(commitContent).toContain('title: "Title with \\\\Backslash\\\\ and \\"Quotes\\""');
+      expect(commitContent).toContain('description: "A description with \\\\ and \\" inside."');
+
+      verifySpy.mockRestore();
+      collabSpy.mockRestore();
+      tokenSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
     it('returns 400 if id param is missing', async () => {
       const context = {
         request: new Request('https://cms.pouta.local/api/content/publish', {

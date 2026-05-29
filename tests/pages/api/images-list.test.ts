@@ -265,14 +265,17 @@ describe('Images List API', () => {
     expect(data.images[2].name).toBe('old.png');
   });
 
-  it('falls back to object key as name when the key has no path segments', async () => {
+  it('falls back to object key as name when the key has no path segments or ends with a slash', async () => {
     vi.spyOn(auth, 'verifySession').mockResolvedValue('github-token');
     vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
 
-    // Simulate an object whose key has no slash – pop() returns undefined
-    const weirdKey = 'rootlevelobject';
+    const weirdKey1 = 'rootlevelobject';
+    const weirdKey2 = 'uploads/owner/repo/';
     mockBucket.list.mockResolvedValue({
-      objects: [{ key: weirdKey, size: 64, uploaded: new Date() }],
+      objects: [
+        { key: weirdKey1, size: 64, uploaded: new Date('2024-01-02') },
+        { key: weirdKey2, size: 64, uploaded: new Date('2024-01-01') },
+      ],
     });
 
     const context = {
@@ -281,7 +284,8 @@ describe('Images List API', () => {
 
     const response = await GET(context);
     const data = await response.json();
-    expect(data.images[0].name).toBe(weirdKey);
+    expect(data.images[0].name).toBe(weirdKey1);
+    expect(data.images[1].name).toBe(weirdKey2);
   });
 
   it('handles objects with a null/undefined uploaded date without crashing (treated as epoch 0)', async () => {
@@ -306,6 +310,49 @@ describe('Images List API', () => {
     expect(data.images[0].name).toBe('dated.png');
     expect(data.images[1].name).toBe('no-date.png');
   });
+
+  it('handles listed.objects being undefined/missing without crashing', async () => {
+    vi.spyOn(auth, 'verifySession').mockResolvedValue('github-token');
+    vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
+    mockBucket.list.mockResolvedValue({}); // objects property is missing
+
+    const context = {
+      request: new Request('https://cms.pouta.local/api/images/list?repo_owner=owner&repo_name=repo'),
+    } as any;
+
+    const response = await GET(context);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.images).toEqual([]);
+  });
+
+  it('comprehensively tests all uploaded date branch sorting combinations', async () => {
+    vi.spyOn(auth, 'verifySession').mockResolvedValue('github-token');
+    vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
+
+    mockBucket.list.mockResolvedValue({
+      objects: [
+        { key: 'uploads/owner/repo/no-date1.png', size: 50, uploaded: null },
+        { key: 'uploads/owner/repo/dated1.png', size: 50, uploaded: new Date('2024-01-01') },
+        { key: 'uploads/owner/repo/no-date2.png', size: 50, uploaded: undefined },
+        { key: 'uploads/owner/repo/dated2.png', size: 50, uploaded: new Date('2024-06-01') },
+      ],
+    });
+
+    const context = {
+      request: new Request('https://cms.pouta.local/api/images/list?repo_owner=owner&repo_name=repo'),
+    } as any;
+
+    const response = await GET(context);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.images[0].name).toBe('dated2.png');
+    expect(data.images[1].name).toBe('dated1.png');
+    expect(data.images[2].name).toBe('no-date1.png');
+    expect(data.images[3].name).toBe('no-date2.png');
+  });
+
 
   it('passes the correct repo-scoped prefix to bucket.list', async () => {
     vi.spyOn(auth, 'verifySession').mockResolvedValue('github-token');

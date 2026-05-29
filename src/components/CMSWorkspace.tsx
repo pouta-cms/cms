@@ -32,6 +32,33 @@ interface DocumentDraft {
   updated_at: string;
 }
 
+interface HydratedDocument {
+  id: string;
+  type: string;
+  slug: string;
+  title: string;
+  status: string;
+  content_json: string;
+  metadata_json: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
+  if (doc === null || typeof doc !== 'object') {
+    return false;
+  }
+  return (
+    'id' in doc && typeof (doc as Record<string, unknown>)['id'] === 'string' &&
+    'type' in doc && typeof (doc as Record<string, unknown>)['type'] === 'string' &&
+    'slug' in doc && typeof (doc as Record<string, unknown>)['slug'] === 'string' &&
+    'title' in doc && typeof (doc as Record<string, unknown>)['title'] === 'string' &&
+    'status' in doc && typeof (doc as Record<string, unknown>)['status'] === 'string' &&
+    'content_json' in doc && typeof (doc as Record<string, unknown>)['content_json'] === 'string' &&
+    'metadata_json' in doc && typeof (doc as Record<string, unknown>)['metadata_json'] === 'string'
+  );
+}
+
 export default function CMSWorkspace() {
   // Auth state
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -69,6 +96,7 @@ export default function CMSWorkspace() {
   const [blocks, setBlocks] = useState<any[]>([]);
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [status, setStatus] = useState('draft');
+  const [isDraftHydrated, setIsDraftHydrated] = useState<boolean>(false);
 
   // UI status feedback
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Saving...' | 'Unsaved Changes' | 'Error' | 'Idle'>('Idle');
@@ -94,6 +122,7 @@ export default function CMSWorkspace() {
 
   // References to keep state values strictly up-to-date in asynchronous closures (e.g. handleDeleteDraft)
   const docIdRef = useRef(docId);
+  const lastRequestedDraftIdRef = useRef<string>('');
   const draftsRef = useRef(drafts);
   useEffect(() => { docIdRef.current = docId; }, [docId]);
   useEffect(() => { draftsRef.current = drafts; }, [drafts]);
@@ -296,7 +325,14 @@ export default function CMSWorkspace() {
         
         // If drafts exist, load the latest updated one automatically
         if (data.documents.length > 0) {
-          loadDocumentDetails(data.documents[0].id);
+          const firstDoc: unknown = data.documents[0];
+          if (isFullyHydratedDocument(firstDoc)) {
+            handleLoadDraftInWorkspace(firstDoc.id, data.documents);
+          } else {
+            setIsDraftHydrated(false);
+            lastRequestedDraftIdRef.current = firstDoc.id;
+            fetchFullDocumentDetail(firstDoc.id);
+          }
         } else {
           // If no drafts exist, prepare a fresh draft
           handleCreateNewDraft();
@@ -309,85 +345,109 @@ export default function CMSWorkspace() {
     }
   };
 
-  // Load selected document details into active states
-  const loadDocumentDetails = async (id: string) => {
-    setSaveStatus('Idle');
+  // Load full document details from D1 if they are missing from list
+  const fetchFullDocumentDetail = async (draftId: string) => {
+    // 1. First look up the draft in existing draftsRef.current
+    const localMatched: unknown = draftsRef.current.find((d) => d.id === draftId);
+    if (isFullyHydratedDocument(localMatched)) {
+      setSaveStatus('Idle');
+      setDocId(localMatched.id);
+      setActiveType(localMatched.type);
+      setTitle(localMatched.title);
+      setSlug(localMatched.slug);
+      setStatus(localMatched.status);
+
+      try {
+        setBlocks(JSON.parse(localMatched.content_json));
+      } catch (e) {
+        setBlocks([]);
+      }
+
+      try {
+        setMetadata(JSON.parse(localMatched.metadata_json));
+      } catch (e) {
+        setMetadata({});
+      }
+      setIsDraftHydrated(true);
+      return;
+    }
+
+    // 2. Fallback to fetch
+    const reqRepo = selectedRepo;
+    const reqDraftId = draftId;
+    lastRequestedDraftIdRef.current = draftId;
+
     try {
-      // Fetch details from local D1 database. Since save handles D1, let's fetch draft details directly.
-      // We can query our database or active list if it contains full content, 
-      // but to ensure the canvas load is fast, we query D1 detail
       const response = await fetch(`/api/content/list?repo=${encodeURIComponent(selectedRepo)}`);
       const data = await response.json();
-      
-      // D1 details fetching is extremely fast. Let's find in active cached list first or fetch.
-      // Since our drafts endpoint /api/content/list returns only summary, we'll write a simple load call or use the first.
-      // Wait, in a schema-free D1 documents design, to keep APIs lightweight, we can fetch all details.
-      // Let's make an edge-side query. Wait, let's fetch the full document row.
-      // Let's see: we can query D1 row directly. To make it extremely elegant, let's write a small edge load API or just
-      // fetch it dynamically by updating the lists endpoint.
-      // Wait, since list returns brief data, let's look up in a local database details call.
-      // Actually, we can write a quick endpoint, but let's see: we can also just fetch it from a list if list returns full content!
-      // In D1, small documents (a few KB of JSON) are extremely small, so returning full content in list is fully acceptable for standard sites.
-      // But to be completely correct and high-performance, let's write a quick detail fetch in the list endpoint, or make list return the full columns!
-      // Wait, in our `list.ts` endpoint, we returned `SELECT id, type, slug, title, status FROM documents...`.
-      // Let's modify the listing query to return all columns, or write a quick detail getter!
-      // Let's check: actually, returning all columns in `list.ts` makes the client side extremamente simple because we can search, load, and cache drafts in memory easily!
-      // Let's modify `/api/content/list.ts` to return all columns `SELECT * FROM documents...`.
-      // Let's do that or search in memory. Actually, let's update list.ts later or just fetch all columns!
-      // Let's check `list.ts` content. We had:
-      // `SELECT id, type, slug, title, status, created_at, updated_at FROM documents...`
-      // If we query the database for this specific document, we can write a quick details query or make `list.ts` return `SELECT * FROM documents...`.
-      // Let's write a quick detail fetch. Actually, to keep it zero-maintenance, we can fetch the full list or let list return all columns!
-      // Let's write a detail check:
-      const fullDocResponse = await fetch(`/api/content/list?repo=${encodeURIComponent(selectedRepo)}`);
-      const fullDocData = await fullDocResponse.json();
-      const matched = fullDocData.documents?.find((d: any) => d.id === id);
-      
-      // Wait, did `list.ts` return metadata_json and content_json?
-      // In the previous step, `list.ts` returned only summary. Let's make a dedicated detail fetch or fetch it from D1.
-      // Actually, we can fetch the individual document by adding a query parameter to `/api/content/list?id=XXX` or similar!
-      // That is incredibly smart! We can edit `/api/content/list.ts` to return the full document if an `id` query parameter is passed!
-      // Let's do that. But first, let's check what we can do in our CMSWorkspace code:
-    } catch (e) {
-      console.error(e);
+
+      // Guard against stale response
+      if (selectedRepo !== reqRepo || lastRequestedDraftIdRef.current !== reqDraftId) {
+        return;
+      }
+
+      if (data.success && data.documents) {
+        setDrafts(data.documents);
+        const matched: unknown = data.documents.find((d: unknown) => {
+          return d !== null && typeof d === 'object' && 'id' in d && d.id === draftId;
+        });
+        if (isFullyHydratedDocument(matched)) {
+          setSaveStatus('Idle');
+          setDocId(matched.id);
+          setActiveType(matched.type);
+          setTitle(matched.title);
+          setSlug(matched.slug);
+          setStatus(matched.status);
+
+          try {
+            setBlocks(JSON.parse(matched.content_json));
+          } catch (e) {
+            setBlocks([]);
+          }
+
+          try {
+            setMetadata(JSON.parse(matched.metadata_json));
+          } catch (e) {
+            setMetadata({});
+          }
+          setIsDraftHydrated(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch full document details:', err);
     }
   };
 
-  // Wait! Let's check how to load details from the active drafts list.
-  // To keep it 100% robust, let's make an edge call or let's update `list.ts` to return the full columns so the client has all raw document details in memory! That is extremely fast and robust for standard headless authors.
-  // Actually, let's write a details query. Let's fetch the full document details by making a GET request to `/api/content/list?repo=${selectedRepo}` but returning full columns or adding an endpoint.
-  // Wait! Let's check what our `src/pages/api/content/list.ts` does:
-  // `SELECT id, type, slug, title, status, created_at, updated_at FROM documents WHERE repo_owner = ? AND repo_name = ?`
-  // If we modify `list.ts` to query `SELECT * FROM documents ...`, the React component will have full details of `content_json` and `metadata_json` right in memory!
-  // This is extremely simple, powerful, and requires no extra endpoint! Let's check how many documents a user typically has. A few dozen drafts. Returning the full JSON for a few dozen drafts is a few hundred KB—completely lightweight for web apps!
-  // But wait! If we want to be 100% correct, let's look at `list.ts` again.
-  // Let's modify `list.ts` later or let's modify it now. Actually, let's write a `CMSWorkspace.tsx` that expects `list.ts` to return the full columns so it can load them instantly in memory without extra network latency!
-  // Yes! If `list.ts` returns the full columns (`SELECT * FROM documents...`), our React state manager can switch between drafts instantly with 0ms delay! That provides a stunning, high-end, premium desktop-like user experience (UX) that will absolutely WOW the user!
-  // Let's do that! Let's write `CMSWorkspace.tsx` to handle full columns from the drafts list, and then we will update `list.ts` to return `SELECT * FROM documents...` instead of only the summary columns.
-
-  // Let's continue writing `CMSWorkspace.tsx`:
   const handleLoadDraftInWorkspace = (draftId: string, currentDraftsList?: DocumentDraft[]) => {
     const listToSearch = currentDraftsList || draftsRef.current;
-    const matched = listToSearch.find((d: any) => d.id === draftId) as any;
+    const matched: unknown = listToSearch.find((d) => d.id === draftId);
     if (!matched) return;
 
-    setSaveStatus('Idle');
-    setDocId(matched.id);
-    setActiveType(matched.type);
-    setTitle(matched.title);
-    setSlug(matched.slug);
-    setStatus(matched.status);
+    lastRequestedDraftIdRef.current = draftId;
 
-    try {
-      setBlocks(JSON.parse(matched.content_json));
-    } catch (e) {
-      setBlocks([]);
-    }
+    if (isFullyHydratedDocument(matched)) {
+      setSaveStatus('Idle');
+      setDocId(matched.id);
+      setActiveType(matched.type);
+      setTitle(matched.title);
+      setSlug(matched.slug);
+      setStatus(matched.status);
 
-    try {
-      setMetadata(JSON.parse(matched.metadata_json));
-    } catch (e) {
-      setMetadata({});
+      try {
+        setBlocks(JSON.parse(matched.content_json));
+      } catch (e) {
+        setBlocks([]);
+      }
+
+      try {
+        setMetadata(JSON.parse(matched.metadata_json));
+      } catch (e) {
+        setMetadata({});
+      }
+      setIsDraftHydrated(true);
+    } else {
+      setIsDraftHydrated(false);
+      fetchFullDocumentDetail(draftId);
     }
   };
 
@@ -470,6 +530,7 @@ export default function CMSWorkspace() {
         content: []
       }
     ]);
+    setIsDraftHydrated(true);
   };
 
   const newTypeLabel = (type: string) => {
@@ -490,6 +551,7 @@ export default function CMSWorkspace() {
         content: []
       }
     ]);
+    setIsDraftHydrated(true);
   };
 
   // Auto-generate Slug on Title change
@@ -865,7 +927,7 @@ export default function CMSWorkspace() {
 
   // Dynamic D1 isolated Autosave debouncer
   useEffect(() => {
-    if (!user || !user.authenticated || !docId || !selectedRepo || !activeType) return;
+    if (!user || !user.authenticated || !docId || !selectedRepo || !activeType || !isDraftHydrated) return;
 
     setSaveStatus('Unsaved Changes');
 
@@ -909,7 +971,7 @@ export default function CMSWorkspace() {
     }, 1200);
 
     return () => clearTimeout(debounceTimer);
-  }, [title, slug, blocks, metadata, activeType, selectedRepo, selectedBranch, status, user, githubInstallationId]);
+  }, [title, slug, blocks, metadata, activeType, selectedRepo, selectedBranch, status, user, githubInstallationId, isDraftHydrated]);
 
   // Refresh lists silently to preserve editor focus
   const refreshDraftListSilence = async () => {
@@ -1103,9 +1165,11 @@ export default function CMSWorkspace() {
  
            {/* Edge Autosave status */}
            {activeConfig && (
-             <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
-               <span className="status-dot"></span>
-               <span className="status-label">{saveStatus}</span>
+             <div className="status-pill-container">
+               <div className={`status-pill status-${saveStatus.toLowerCase().replace(' ', '-')}`}>
+                 <span className="status-dot"></span>
+                 <span className="status-label">{saveStatus}</span>
+               </div>
              </div>
            )}
  
@@ -2400,6 +2464,14 @@ export default function CMSWorkspace() {
         }
 
         /* Autosave indicators */
+        .status-pill-container {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          width: 145px;
+          flex-shrink: 0;
+        }
+
         .status-pill {
           display: flex;
           align-items: center;
@@ -2411,6 +2483,7 @@ export default function CMSWorkspace() {
           font-size: 0.8rem;
           font-weight: 500;
           transition: all 0.3s ease;
+          white-space: nowrap;
         }
 
         .status-dot {
@@ -3412,6 +3485,7 @@ export default function CMSWorkspace() {
 
           /* Hide status pill text, show only dot */
           .status-label { display: none; }
+          .status-pill-container { width: auto; }
           .status-pill { padding: 0.4rem 0.55rem; }
 
           /* Hide full username, keep avatar */

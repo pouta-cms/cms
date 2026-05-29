@@ -56,10 +56,7 @@ async function verifyStripeSignature(
       if (!cleanSig || !/^[0-9a-fA-F]+$/.test(cleanSig)) {
         return false;
       }
-      const matches = cleanSig.match(/.{1,2}/g);
-      if (!matches) {
-        return false;
-      }
+      const matches = cleanSig.match(/.{1,2}/g)!;
       const signatureBytes = new Uint8Array(
         matches.map((byte) => parseInt(byte, 16))
       );
@@ -157,7 +154,7 @@ export const POST: APIRoute = async ({ request }) => {
 
       // Decode the repository path safely (converting base64url back to raw string, with fallback for raw paths)
       try {
-        if (repoPath && !repoPath.includes('/') && !repoPath.includes(' ')) {
+        if (!repoPath.includes('/') && !repoPath.includes(' ')) {
           let base64 = repoPath.replace(/-/g, '+').replace(/_/g, '/');
           while (base64.length % 4) {
             base64 += '=';
