@@ -7,7 +7,7 @@ function getDaysInMonth(year: number, month: number): number {
   if (month === 2 && isLeapYear(year)) {
     return 29;
   }
-  return days[month - 1] || 0;
+  return days[month - 1];
 }
 
 /**
