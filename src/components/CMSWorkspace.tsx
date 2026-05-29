@@ -296,7 +296,7 @@ export default function CMSWorkspace() {
         
         // If drafts exist, load the latest updated one automatically
         if (data.documents.length > 0) {
-          loadDocumentDetails(data.documents[0].id);
+          handleLoadDraftInWorkspace(data.documents[0].id, data.documents);
         } else {
           // If no drafts exist, prepare a fresh draft
           handleCreateNewDraft();
@@ -309,49 +309,6 @@ export default function CMSWorkspace() {
     }
   };
 
-  // Load selected document details into active states
-  const loadDocumentDetails = async (id: string) => {
-    setSaveStatus('Idle');
-    try {
-      // Fetch details from local D1 database. Since save handles D1, let's fetch draft details directly.
-      // We can query our database or active list if it contains full content, 
-      // but to ensure the canvas load is fast, we query D1 detail
-      const response = await fetch(`/api/content/list?repo=${encodeURIComponent(selectedRepo)}`);
-      const data = await response.json();
-      
-      // D1 details fetching is extremely fast. Let's find in active cached list first or fetch.
-      // Since our drafts endpoint /api/content/list returns only summary, we'll write a simple load call or use the first.
-      // Wait, in a schema-free D1 documents design, to keep APIs lightweight, we can fetch all details.
-      // Let's make an edge-side query. Wait, let's fetch the full document row.
-      // Let's see: we can query D1 row directly. To make it extremely elegant, let's write a small edge load API or just
-      // fetch it dynamically by updating the lists endpoint.
-      // Wait, since list returns brief data, let's look up in a local database details call.
-      // Actually, we can write a quick endpoint, but let's see: we can also just fetch it from a list if list returns full content!
-      // In D1, small documents (a few KB of JSON) are extremely small, so returning full content in list is fully acceptable for standard sites.
-      // But to be completely correct and high-performance, let's write a quick detail fetch in the list endpoint, or make list return the full columns!
-      // Wait, in our `list.ts` endpoint, we returned `SELECT id, type, slug, title, status FROM documents...`.
-      // Let's modify the listing query to return all columns, or write a quick detail getter!
-      // Let's check: actually, returning all columns in `list.ts` makes the client side extremamente simple because we can search, load, and cache drafts in memory easily!
-      // Let's modify `/api/content/list.ts` to return all columns `SELECT * FROM documents...`.
-      // Let's do that or search in memory. Actually, let's update list.ts later or just fetch all columns!
-      // Let's check `list.ts` content. We had:
-      // `SELECT id, type, slug, title, status, created_at, updated_at FROM documents...`
-      // If we query the database for this specific document, we can write a quick details query or make `list.ts` return `SELECT * FROM documents...`.
-      // Let's write a quick detail fetch. Actually, to keep it zero-maintenance, we can fetch the full list or let list return all columns!
-      // Let's write a detail check:
-      const fullDocResponse = await fetch(`/api/content/list?repo=${encodeURIComponent(selectedRepo)}`);
-      const fullDocData = await fullDocResponse.json();
-      const matched = fullDocData.documents?.find((d: any) => d.id === id);
-      
-      // Wait, did `list.ts` return metadata_json and content_json?
-      // In the previous step, `list.ts` returned only summary. Let's make a dedicated detail fetch or fetch it from D1.
-      // Actually, we can fetch the individual document by adding a query parameter to `/api/content/list?id=XXX` or similar!
-      // That is incredibly smart! We can edit `/api/content/list.ts` to return the full document if an `id` query parameter is passed!
-      // Let's do that. But first, let's check what we can do in our CMSWorkspace code:
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   // Wait! Let's check how to load details from the active drafts list.
   // To keep it 100% robust, let's make an edge call or let's update `list.ts` to return the full columns so the client has all raw document details in memory! That is extremely fast and robust for standard headless authors.
