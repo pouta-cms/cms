@@ -109,7 +109,10 @@ function blockToMarkdown(block: Block): string {
             linkText = getText(obj.content);
           }
           const href = typeof obj.href === 'string' ? obj.href : '';
-          return `[${linkText}](${href})`;
+          if (href) {
+            return `[${linkText}](${href})`;
+          }
+          return linkText;
         }
         return '';
       })
