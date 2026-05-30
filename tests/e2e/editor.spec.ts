@@ -36,11 +36,12 @@ test.describe('CMS Workspace Editor and Publishing', () => {
           try {
             const parsed = JSON.parse(text);
             const redactKeys = ['token', 'password', 'authorization', 'ssn', 'email', 'pouta_session', 'secret', 'client_secret'];
-            const redact = (obj: any): any => {
-              if (!obj || typeof obj !== 'object') return obj;
+            const redact = (obj: unknown): unknown => {
+              if (typeof obj !== 'object' || obj === null) return obj;
               if (Array.isArray(obj)) return obj.map(redact);
-              const result: any = {};
-              for (const [k, v] of Object.entries(obj)) {
+              const result: Record<string, unknown> = {};
+              const objectEntries = Object.entries(obj as Record<string, unknown>);
+              for (const [k, v] of objectEntries) {
                 if (redactKeys.some(rk => k.toLowerCase().includes(rk))) {
                   result[k] = '[REDACTED]';
                 } else {

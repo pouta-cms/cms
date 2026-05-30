@@ -17,13 +17,16 @@ async function main(): Promise<void> {
     if (fs.existsSync(wranglerConfigPath)) {
       const content = fs.readFileSync(wranglerConfigPath, 'utf8');
       if (content.includes('"ai"')) {
-        // Backup original config
-        fs.writeFileSync(backupPath, content, 'utf8');
-        
         // Strip AI binding (including preceding comma and closing brace)
         const updated = content.replace(/,\s*"ai"\s*:\s*\{\s*"binding"\s*:\s*"AI"\s*\}\s*/g, '');
-        fs.writeFileSync(wranglerConfigPath, updated, 'utf8');
-        console.log('SUCCESS: Successfully backed up and stripped "ai" binding from wrangler.jsonc.');
+        if (updated !== content) {
+          // Backup original config
+          fs.writeFileSync(backupPath, content, 'utf8');
+          fs.writeFileSync(wranglerConfigPath, updated, 'utf8');
+          console.log('SUCCESS: Successfully backed up and stripped "ai" binding from wrangler.jsonc.');
+        } else {
+          console.log('WARNING: "ai" binding was detected in content, but the strict regex did not match, so no changes were made to wranglerConfigPath.');
+        }
       } else {
         console.log('NOTE: "ai" binding not found in wrangler.jsonc, skipping strip.');
       }
@@ -62,8 +65,19 @@ async function main(): Promise<void> {
     });
 
     // Exit with Playwright's exit code
-    process.exitCode = result.status ?? 0;
-    console.log(`Playwright tests exited with code ${result.status}`);
+    if (typeof result.status === 'number') {
+      process.exitCode = result.status;
+    } else if (result.error) {
+      process.exitCode = 1;
+      console.error('Playwright execution error:', result.error);
+    } else if (result.status === null && result.signal) {
+      process.exitCode = 1;
+      console.error(`Playwright was terminated by signal: ${result.signal}`);
+    } else {
+      process.exitCode = 1;
+      console.error('Playwright exited with unknown status.');
+    }
+    console.log(`Playwright tests exited with code ${process.exitCode}`);
 
   } catch (error) {
     console.error('An unexpected error occurred in E2E runner:', error);
