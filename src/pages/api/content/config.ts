@@ -56,6 +56,30 @@ export const GET: APIRoute = async ({ request }) => {
       );
     }
 
+    if (userToken === 'mock-github-token' && repoFullName === 'test-owner/sandbox-repo') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          config: {
+            contentTypes: [
+              {
+                type: 'post',
+                writePath: 'src/pages/posts/{slug}.md',
+                fields: [
+                  { name: 'description', label: 'Description', type: 'text' },
+                  { name: 'author', label: 'Author', type: 'text' },
+                ],
+              },
+            ],
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     if (!appId || !privateKeyB64 || appId === 'placeholder_github_app_id') {
       return new Response(
         JSON.stringify({

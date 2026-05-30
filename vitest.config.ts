@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
     alias: {
       'cloudflare:workers': path.resolve(__dirname, './tests/mocks/cloudflare-workers.ts'),
     },

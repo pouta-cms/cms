@@ -43,6 +43,22 @@ export const GET: APIRoute = async ({ request }) => {
       });
     }
 
+    if (token === 'mock-github-token') {
+      return new Response(
+        JSON.stringify({
+          authenticated: true,
+          username: 'mock-e2e-writer',
+          name: 'E2E Test Writer',
+          avatar_url: 'https://avatars.githubusercontent.com/u/9919?v=4',
+          html_url: 'https://github.com/mock-e2e-writer',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // Fetch user profile from GitHub
     const userResponse = await fetch('https://api.github.com/user', {
       method: 'GET',

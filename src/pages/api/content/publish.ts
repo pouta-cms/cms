@@ -289,6 +289,22 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
+    if (userToken === 'mock-github-token') {
+      await db
+        .prepare('UPDATE documents SET status = "published", updated_at = CURRENT_TIMESTAMP WHERE id = ? AND repo_owner = ? AND repo_name = ?')
+        .bind(id, repoOwner, repoName)
+        .run();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `[MOCK] Successfully published to ${repoOwner}/${repoName} (${repoBranch})!`,
+          path: `src/pages/posts/${doc.slug}.md`,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!appId || !privateKeyB64 || appId === 'placeholder_github_app_id') {
       return new Response(
         JSON.stringify({

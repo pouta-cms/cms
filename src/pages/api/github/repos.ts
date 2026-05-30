@@ -19,6 +19,29 @@ export const GET: APIRoute = async ({ request }) => {
       });
     }
 
+    if (userToken === 'mock-github-token') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          repos: [
+            {
+              id: 12345,
+              name: 'sandbox-repo',
+              full_name: 'test-owner/sandbox-repo',
+              owner: 'test-owner',
+              default_branch: 'main',
+              github_installation_id: '9999',
+            },
+          ],
+          installationsCount: 1,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // 2. Fetch installations the active user has access to
     const instResponse = await fetch('https://api.github.com/user/installations', {
       method: 'GET',
