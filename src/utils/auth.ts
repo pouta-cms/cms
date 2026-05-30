@@ -33,7 +33,7 @@ export async function verifyCollaborator(
   name: string
 ): Promise<boolean> {
   try {
-    if (userToken === 'mock-github-token') {
+    if (userToken === 'mock-github-token' && owner === 'test-owner' && name === 'sandbox-repo') {
       return true;
     }
 

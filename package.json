@@ -12,8 +12,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "generate-types": "wrangler types",
-    "test:e2e": "node tests/e2e/run-e2e.js",
-    "test:e2e:ui": "node tests/e2e/run-e2e.js --ui"
+    "test:e2e": "npx tsx tests/e2e/run-e2e.ts",
+    "test:e2e:ui": "npx tsx tests/e2e/run-e2e.ts --ui"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.5.4",

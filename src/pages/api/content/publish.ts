@@ -291,8 +291,8 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (userToken === 'mock-github-token') {
       await db
-        .prepare('UPDATE documents SET status = "published", updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .bind(id)
+        .prepare('UPDATE documents SET status = "published", updated_at = CURRENT_TIMESTAMP WHERE id = ? AND repo_owner = ? AND repo_name = ?')
+        .bind(id, repoOwner, repoName)
         .run();
 
       return new Response(

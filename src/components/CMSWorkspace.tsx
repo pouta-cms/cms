@@ -51,6 +51,10 @@ interface ContentType {
   fields?: any[];
 }
 
+interface DraftConfig {
+  contentTypes: ContentType[];
+}
+
 
 function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
   if (doc === null || typeof doc !== 'object') {
@@ -87,7 +91,7 @@ export default function CMSWorkspace(): React.ReactElement {
   const [checkingSubscription, setCheckingSubscription] = useState<boolean>(false);
 
   // Dynamic config loaded directly from GitHub repo
-  const [activeConfig, setActiveConfig] = useState<any>(null);
+  const [activeConfig, setActiveConfig] = useState<DraftConfig | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [configError, setConfigError] = useState<string>('');
   const [configMissing, setConfigMissing] = useState(false);
@@ -324,7 +328,7 @@ export default function CMSWorkspace(): React.ReactElement {
   }, [selectedRepo, githubInstallationId]);
 
   // Fetch D1 draft lists isolated strictly by active repository scope
-  const fetchIsolatedDrafts = async (repoFullName: string, configToUse?: any) => {
+  const fetchIsolatedDrafts = async (repoFullName: string, configToUse?: DraftConfig) => {
     setLoadingDrafts(true);
     try {
       const response = await fetch(`/api/content/list?repo=${encodeURIComponent(repoFullName)}`);
@@ -515,7 +519,7 @@ export default function CMSWorkspace(): React.ReactElement {
   };
 
   // Create a brand new draft within the active repository scope
-  const handleCreateNewDraft = (configParam?: any) => {
+  const handleCreateNewDraft = (configParam?: DraftConfig) => {
     const configToUse = configParam || activeConfig;
     if (!configToUse || !configToUse.contentTypes || configToUse.contentTypes.length === 0) return;
 
@@ -922,7 +926,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
       // Auto-fill companion alt-text / caption fields in frontmatter metadata if they exist
       const possibleAltNames = [`${fieldName}_alt`, `${fieldName}_caption`, 'alt', 'caption', 'image_alt', `${fieldName}Alt`];
-      const fields = activeConfig?.contentTypes?.find((c: any) => c.type === activeType)?.fields || [];
+      const fields = activeConfig?.contentTypes?.find((c: ContentType) => c.type === activeType)?.fields || [];
       const altField = fields.find((f: any) => possibleAltNames.includes(f.name));
       if (altField && data.altText) {
         handleMetadataChange(altField.name, data.altText);
@@ -1547,7 +1551,7 @@ export default function CMSWorkspace(): React.ReactElement {
                 value={activeType}
                 onChange={(e) => handleActiveTypeChange(e.target.value)}
               >
-                {activeConfig.contentTypes.map((type: any) => (
+                {activeConfig.contentTypes.map((type: ContentType) => (
                   <option key={type.type} value={type.type}>
                     {type.label}
                   </option>

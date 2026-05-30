@@ -29,10 +29,29 @@ test.describe('CMS Workspace Editor and Publishing', () => {
     page.on('response', async res => {
       const url = res.url();
       console.log(`[BROWSER RES] ${res.status()} ${url}`);
-      if (url.includes('/api/')) {
+      if (process.env.DEBUG_E2E_LOGS === 'true' && url.includes('/api/')) {
         try {
           const text = await res.text();
-          console.log(`[API RESPONSE BODY] [${url}]: ${text}`);
+          let loggedText = text;
+          try {
+            const parsed = JSON.parse(text);
+            const redactKeys = ['token', 'password', 'authorization', 'ssn', 'email', 'pouta_session', 'secret', 'client_secret'];
+            const redact = (obj: any): any => {
+              if (!obj || typeof obj !== 'object') return obj;
+              if (Array.isArray(obj)) return obj.map(redact);
+              const result: any = {};
+              for (const [k, v] of Object.entries(obj)) {
+                if (redactKeys.some(rk => k.toLowerCase().includes(rk))) {
+                  result[k] = '[REDACTED]';
+                } else {
+                  result[k] = redact(v);
+                }
+              }
+              return result;
+            };
+            loggedText = JSON.stringify(redact(parsed));
+          } catch (jsonErr) {}
+          console.log(`[API RESPONSE BODY] [${url}]: ${loggedText}`);
         } catch (e) {}
       }
     });
