@@ -515,23 +515,6 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-
-        /* Prevent nested scrollbars & scroll trapping in BlockEditor so it grows naturally */
-        .blocknote-editor-wrapper {
-          height: auto !important;
-        }
-        .bn-container,
-        .bn-editor,
-        .bn-root,
-        .ProseMirror,
-        .mantine-ScrollArea-root,
-        .mantine-ScrollArea-viewport,
-        .mantine-ScrollArea-content {
-          height: auto !important;
-          min-height: 100% !important;
-          overflow-y: visible !important;
-          overflow: visible !important;
-        }
       `}</style>
     </div>
   );

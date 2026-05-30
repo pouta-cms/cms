@@ -59,7 +59,7 @@ function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
   );
 }
 
-export default function CMSWorkspace() {
+export default function CMSWorkspace(): React.ReactElement {
   // Auth state
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -1054,6 +1054,13 @@ export default function CMSWorkspace() {
     return typeObj ? typeObj.label : 'Document';
   }, [activeConfig, activeType]);
 
+  const resolvedOutputPath = useMemo(() => {
+    if (!activeConfig || !activeType || !docId) return '';
+    const typeObj = activeConfig.contentTypes?.find((t: any) => t.type === activeType);
+    const draft = drafts.find((d) => d.id === docId);
+    return resolveWritePath(typeObj?.writePath, slug, metadata, draft?.created_at);
+  }, [activeConfig, activeType, docId, slug, metadata, drafts]);
+
   // ----------------------------------------------------
   // Loader Indicator State
   // ----------------------------------------------------
@@ -1842,8 +1849,8 @@ export default function CMSWorkspace() {
                 </div>
                 <div className="publish-meta-item">
                   <span className="publish-meta-label">File Path</span>
-                  <span className="publish-meta-value font-mono break-all" title={resolveWritePath(activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath, slug, metadata, drafts.find((d) => d.id === docId)?.created_at)}>
-                    {resolveWritePath(activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath, slug, metadata, drafts.find((d) => d.id === docId)?.created_at)}
+                  <span className="publish-meta-value font-mono break-all" title={resolvedOutputPath}>
+                    {resolvedOutputPath}
                   </span>
                 </div>
               </div>
