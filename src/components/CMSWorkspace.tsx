@@ -44,6 +44,14 @@ interface HydratedDocument {
   updated_at?: string;
 }
 
+interface ContentType {
+  type: string;
+  label: string;
+  writePath?: string;
+  fields?: any[];
+}
+
+
 function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
   if (doc === null || typeof doc !== 'object') {
     return false;
@@ -1044,19 +1052,19 @@ export default function CMSWorkspace(): React.ReactElement {
   // Find dynamic field configurations
   const activeFields = useMemo(() => {
     if (!activeConfig || !activeConfig.contentTypes) return [];
-    const typeObj = activeConfig.contentTypes.find((t: any) => t.type === activeType);
-    return typeObj ? typeObj.fields : [];
+    const typeObj = activeConfig.contentTypes.find((t: ContentType) => t.type === activeType);
+    return typeObj ? (typeObj.fields || []) : [];
   }, [activeConfig, activeType]);
 
   const activeTypeLabel = useMemo(() => {
     if (!activeConfig || !activeConfig.contentTypes) return 'Document';
-    const typeObj = activeConfig.contentTypes.find((t: any) => t.type === activeType);
+    const typeObj = activeConfig.contentTypes.find((t: ContentType) => t.type === activeType);
     return typeObj ? typeObj.label : 'Document';
   }, [activeConfig, activeType]);
 
   const resolvedOutputPath = useMemo(() => {
     if (!activeConfig || !activeType || !docId) return '';
-    const typeObj = activeConfig.contentTypes?.find((t: any) => t.type === activeType);
+    const typeObj = activeConfig.contentTypes?.find((t: ContentType) => t.type === activeType);
     const draft = drafts.find((d) => d.id === docId);
     return resolveWritePath(typeObj?.writePath, slug, metadata, draft?.created_at);
   }, [activeConfig, activeType, docId, slug, metadata, drafts]);
