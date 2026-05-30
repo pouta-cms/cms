@@ -167,7 +167,7 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
   };
 
   return (
-    <div ref={containerRef} className="blocknote-editor-wrapper relative w-full h-full min-h-[500px] text-left">
+    <div ref={containerRef} className="blocknote-editor-wrapper relative w-full h-auto min-h-[500px] text-left">
       
       {/* Inline AI Writing Assistant Floating Button */}
       {selectedText && (

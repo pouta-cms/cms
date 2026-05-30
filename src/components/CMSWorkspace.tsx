@@ -44,6 +44,14 @@ interface HydratedDocument {
   updated_at?: string;
 }
 
+interface ContentType {
+  type: string;
+  label: string;
+  writePath?: string;
+  fields?: any[];
+}
+
+
 function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
   if (doc === null || typeof doc !== 'object') {
     return false;
@@ -59,7 +67,7 @@ function isFullyHydratedDocument(doc: unknown): doc is HydratedDocument {
   );
 }
 
-export default function CMSWorkspace() {
+export default function CMSWorkspace(): React.ReactElement {
   // Auth state
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -1044,15 +1052,22 @@ export default function CMSWorkspace() {
   // Find dynamic field configurations
   const activeFields = useMemo(() => {
     if (!activeConfig || !activeConfig.contentTypes) return [];
-    const typeObj = activeConfig.contentTypes.find((t: any) => t.type === activeType);
-    return typeObj ? typeObj.fields : [];
+    const typeObj = activeConfig.contentTypes.find((t: ContentType) => t.type === activeType);
+    return typeObj ? (typeObj.fields || []) : [];
   }, [activeConfig, activeType]);
 
   const activeTypeLabel = useMemo(() => {
     if (!activeConfig || !activeConfig.contentTypes) return 'Document';
-    const typeObj = activeConfig.contentTypes.find((t: any) => t.type === activeType);
+    const typeObj = activeConfig.contentTypes.find((t: ContentType) => t.type === activeType);
     return typeObj ? typeObj.label : 'Document';
   }, [activeConfig, activeType]);
+
+  const resolvedOutputPath = useMemo(() => {
+    if (!activeConfig || !activeType || !docId) return '';
+    const typeObj = activeConfig.contentTypes?.find((t: ContentType) => t.type === activeType);
+    const draft = drafts.find((d) => d.id === docId);
+    return resolveWritePath(typeObj?.writePath, slug, metadata, draft?.created_at);
+  }, [activeConfig, activeType, docId, slug, metadata, drafts]);
 
   // ----------------------------------------------------
   // Loader Indicator State
@@ -1178,7 +1193,7 @@ export default function CMSWorkspace() {
              <button className="btn-mobile-sidebar-toggle" onClick={() => { setMetaOpen(o => !o); setDraftsOpen(false); }} title="Settings" aria-label="Toggle settings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </button>
           )}
@@ -1198,6 +1213,51 @@ export default function CMSWorkspace() {
               </svg>
               <span className="btn-media-label">Media</span>
             </button>
+          )}
+
+          {/* Sticky Header Publish Button */}
+          {selectedRepo && docId && (
+            <div className="relative flex items-center">
+              <button
+                className={`btn-header-publish btn-header-publish-${publishStatus.toLowerCase().replace('!', '')}`}
+                onClick={handlePublish}
+                disabled={publishStatus === 'Publishing...'}
+                title={`Push updates to ${selectedRepo} on branch ${selectedBranch}`}
+              >
+                {publishStatus === 'Publishing...' ? (
+                  <>
+                    <span className="spinner-mini mr-1" style={{ borderTopColor: 'var(--text-light)', borderLeftColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: 'transparent' }} />
+                    Syncing...
+                  </>
+                ) : publishStatus === 'Published!' ? (
+                  'Published! 🎉'
+                ) : publishStatus === 'Error' ? (
+                  'Error ⚠️'
+                ) : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Publish
+                  </>
+                )}
+              </button>
+
+              {/* Glassmorphic Alert Popover for Publication Failures */}
+              {publishStatus === 'Error' && publishError && (
+                <div className="header-publish-error-popup">
+                  <div className="header-publish-error-header">
+                    <span>⚠️ Publication Failure</span>
+                    <button className="btn-close-error-popup" onClick={() => setPublishStatus('Idle')}>×</button>
+                  </div>
+                  <div className="header-publish-error-body">
+                    {publishError}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* User Profile avatar */}
@@ -1783,32 +1843,25 @@ export default function CMSWorkspace() {
 
             <div className="divider" />
 
-            {/* Publishing Settings panel */}
+            {/* Git Publishing Metadata Panel */}
             <div className="publish-card">
-              <div className="publish-card-header">Publish to GitHub App</div>
-              <p className="publish-card-desc">
-                Pushes changes to `<strong>{selectedRepo}</strong>` branch `<strong>{selectedBranch}</strong>`. Path: `<strong>{resolveWritePath(activeConfig.contentTypes.find((t: any) => t.type === activeType)?.writePath, slug, metadata, drafts.find((d) => d.id === docId)?.created_at)}</strong>`
-              </p>
-              
-              <button
-                className={`btn-publish btn-publish-${publishStatus.toLowerCase().replace('!', '')}`}
-                onClick={handlePublish}
-                disabled={publishStatus === 'Publishing...' || !docId}
-              >
-                {publishStatus === 'Publishing...' && (
-                  <span className="spinner"></span>
-                )}
-                {publishStatus === 'Idle' && 'Publish Changes'}
-                {publishStatus === 'Publishing...' && 'Syncing Commit...'}
-                {publishStatus === 'Published!' && 'Published Successfully! 🎉'}
-                {publishStatus === 'Error' && 'Try Again'}
-              </button>
-
-              {publishStatus === 'Error' && publishError && (
-                <div className="publish-error-message">
-                  <strong>Publication Failure:</strong> {publishError}
+              <div className="publish-card-header">Git Sync Target</div>
+              <div className="publish-card-meta-list">
+                <div className="publish-meta-item">
+                  <span className="publish-meta-label">Repository</span>
+                  <span className="publish-meta-value">{selectedRepo}</span>
                 </div>
-              )}
+                <div className="publish-meta-item">
+                  <span className="publish-meta-label">Branch</span>
+                  <span className="publish-meta-value">{selectedBranch}</span>
+                </div>
+                <div className="publish-meta-item">
+                  <span className="publish-meta-label">File Path</span>
+                  <span className="publish-meta-value font-mono break-all" title={resolvedOutputPath}>
+                    {resolvedOutputPath}
+                  </span>
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -2257,7 +2310,7 @@ export default function CMSWorkspace() {
           color: var(--text-light);
           height: 100vh;
           max-height: 100vh;
-          overflow: hidden;
+          overflow: clip;
           font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           display: flex;
           flex-direction: column;
@@ -2666,8 +2719,8 @@ export default function CMSWorkspace() {
           display: grid;
           grid-template-columns: 260px 1fr 340px;
           flex: 1;
-          height: calc(100vh - 73px);
-          overflow: hidden;
+          min-height: 0;
+          overflow: clip;
         }
 
         /* Column 1: isolated Drafts Panel */
@@ -3959,6 +4012,157 @@ export default function CMSWorkspace() {
           .btn-media-label { display: none; }
           .media-image-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
           .media-library-modal { max-height: 92vh; }
+        }
+
+        /* Prevent nested scrollbars & scroll trapping in BlockEditor so it grows naturally */
+        .blocknote-editor-wrapper {
+          height: auto !important;
+        }
+        .bn-container,
+        .bn-editor,
+        .bn-root,
+        .ProseMirror,
+        .mantine-ScrollArea-root,
+        .mantine-ScrollArea-viewport,
+        .mantine-ScrollArea-content {
+          height: auto !important;
+          min-height: 100% !important;
+          overflow-y: visible !important;
+          overflow: visible !important;
+        }
+
+        /* ─── Premium Sticky Header Publish Button ────────────────── */
+        .btn-header-publish {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          background: var(--accent-gradient);
+          border: none;
+          border-radius: 8px;
+          color: white;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+        }
+
+        .btn-header-publish:hover:not(:disabled) {
+          filter: brightness(1.1);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
+        }
+
+        .btn-header-publish:disabled {
+          background: #1e293b;
+          color: #64748b;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+
+        .btn-header-publish-publishing {
+          background: #1e293b !important;
+          color: #cbd5e1 !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          box-shadow: none !important;
+          cursor: not-allowed;
+        }
+
+        .btn-header-publish-published {
+          background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25) !important;
+        }
+
+        .btn-header-publish-error {
+          background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
+          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25) !important;
+        }
+
+        /* Glassmorphic Alert Popover for Publication Errors */
+        .header-publish-error-popup {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 8px;
+          width: 290px;
+          background: rgba(15, 17, 26, 0.95);
+          border: 1px solid rgba(239, 68, 68, 0.35);
+          border-radius: 12px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(20px);
+          overflow: hidden;
+          z-index: 250;
+          padding: 12px 14px;
+          animation: fade-in-slide 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          text-align: left;
+        }
+
+        .header-publish-error-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11px;
+          font-weight: 700;
+          color: #f87171;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 6px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          padding-bottom: 6px;
+        }
+
+        .btn-close-error-popup {
+          background: transparent;
+          border: none;
+          color: #94a3b8;
+          font-size: 14px;
+          cursor: pointer;
+          line-height: 1;
+        }
+        
+        .btn-close-error-popup:hover {
+          color: white;
+        }
+
+        .header-publish-error-body {
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11.5px;
+          color: #cbd5e1;
+          line-height: 1.5;
+        }
+
+        /* Git Publishing Sidebar Meta list */
+        .publish-card-meta-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 8px;
+        }
+
+        .publish-meta-item {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+
+        .publish-meta-label {
+          font-family: 'Outfit', sans-serif;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          color: var(--text-muted);
+        }
+
+        .publish-meta-value {
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 11.5px;
+          color: white;
+          font-weight: 500;
         }
       `}</style>
     </>
