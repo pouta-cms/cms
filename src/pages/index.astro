@@ -22,11 +22,14 @@ export const prerender = false;
         margin: 0;
         padding: 0;
       }
+      html,
       body {
         background-color: #0a0c10;
         margin: 0;
         padding: 0;
-        overflow: hidden;
+        height: 100% !important;
+        max-height: 100% !important;
+        overflow: clip !important;
       }
     </style>
   </head>
