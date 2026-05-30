@@ -196,6 +196,100 @@ export default function CMSWorkspace(): React.ReactElement {
     checkAuth();
   }, []);
 
+  // Synchronize active workspace state back to URL query parameters
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!selectedRepo) return; // Do not wipe URL parameters before repository is selected / loaded
+    
+    const url = new URL(window.location.href);
+    let changed = false;
+    
+    if (url.searchParams.get('repo') !== selectedRepo) {
+      url.searchParams.set('repo', selectedRepo);
+      // If repository changed, we immediately clear the draft ID from the URL to avoid mismatched state
+      url.searchParams.delete('draftId');
+      changed = true;
+    }
+    
+    if (selectedBranch && selectedBranch !== 'main') {
+      if (url.searchParams.get('branch') !== selectedBranch) {
+        url.searchParams.set('branch', selectedBranch);
+        changed = true;
+      }
+    } else {
+      if (url.searchParams.has('branch')) {
+        url.searchParams.delete('branch');
+        changed = true;
+      }
+    }
+    
+    // Only update draftId in the URL if the active draft is hydrated and loaded.
+    // This prevents wiping the URL's draftId parameter during initial startup/loading.
+    if (isDraftHydrated && docId) {
+      if (url.searchParams.get('draftId') !== docId) {
+        url.searchParams.set('draftId', docId);
+        changed = true;
+      }
+    }
+    
+    if (changed) {
+      window.history.pushState({}, '', url.pathname + url.search);
+    }
+  }, [selectedRepo, selectedBranch, docId, isDraftHydrated]);
+
+  // Listen for browser back/forward navigation (popstate)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlRepo = urlParams.get('repo') || '';
+      const urlBranch = urlParams.get('branch') || 'main';
+      const urlDraftId = urlParams.get('draftId') || '';
+      
+      // 1. If repo changed in URL, update repository and load its assets
+      if (urlRepo && urlRepo !== selectedRepo) {
+        setSelectedRepo(urlRepo);
+        localStorage.setItem('pouta_last_repo', urlRepo);
+        const matched = repos.find(r => r.full_name === urlRepo);
+        if (matched) {
+          setSelectedBranch(urlBranch || matched.default_branch || 'main');
+          setGithubInstallationId(matched.github_installation_id);
+        }
+        // Clear active doc so we fetch fresh config & drafts
+        setDocId('');
+        setActiveConfig(null);
+      }
+      
+      // 2. If draftId changed in URL, load it
+      if (urlDraftId !== docId) {
+        // Guard: If the repository is also changing in this popstate event, do not load the draft here.
+        // The repository state update will trigger fetching the new repository's drafts, which will 
+        // automatically load the correct draft from the URL once fetched.
+        if (urlRepo && urlRepo !== selectedRepo) {
+          return;
+        }
+
+        if (urlDraftId) {
+          // If the draft is in our currently loaded drafts list, load it.
+          // Otherwise, fetch it.
+          const matched = drafts.find(d => d.id === urlDraftId);
+          if (matched) {
+            handleLoadDraftInWorkspace(urlDraftId, drafts);
+          } else {
+            setIsDraftHydrated(false);
+            fetchFullDocumentDetail(urlDraftId);
+          }
+        } else {
+          setDocId('');
+        }
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedRepo, docId, repos, drafts]);
+
   // Fetch installed repositories
   const fetchUserInstallations = async () => {
     setLoadingRepos(true);
@@ -205,14 +299,23 @@ export default function CMSWorkspace(): React.ReactElement {
       if (data.success && data.repos && data.repos.length > 0) {
         setRepos(data.repos);
         
-        // Select the last remembered repository, or default to the first one
+        // Select repo/branch from URL query parameters if present, otherwise fallback to localStorage/first repo
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlRepo = urlParams ? urlParams.get('repo') : null;
+        const urlBranch = urlParams ? urlParams.get('branch') : null;
+        
         const savedRepo = typeof window !== 'undefined' ? localStorage.getItem('pouta_last_repo') : null;
-        const matchedSaved = savedRepo ? data.repos.find((r: any) => r.full_name === savedRepo) : null;
+        const matchedSaved = urlRepo 
+          ? data.repos.find((r: any) => r.full_name === urlRepo)
+          : (savedRepo ? data.repos.find((r: any) => r.full_name === savedRepo) : null);
         
         if (matchedSaved) {
           setSelectedRepo(matchedSaved.full_name);
-          setSelectedBranch(matchedSaved.default_branch || 'main');
+          setSelectedBranch(urlBranch || matchedSaved.default_branch || 'main');
           setGithubInstallationId(matchedSaved.github_installation_id);
+          if (typeof window !== 'undefined' && !urlRepo) {
+            localStorage.setItem('pouta_last_repo', matchedSaved.full_name);
+          }
         } else {
           const firstRepo = data.repos[0];
           setSelectedRepo(firstRepo.full_name);
@@ -336,15 +439,28 @@ export default function CMSWorkspace(): React.ReactElement {
       if (data.success && data.documents) {
         setDrafts(data.documents);
         
-        // If drafts exist, load the latest updated one automatically
+        // Check if there is a draft ID in URL parameters
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlDraftId = urlParams ? urlParams.get('draftId') : null;
+        
+        // If drafts exist, load the target URL draft or default to the latest updated one automatically
         if (data.documents.length > 0) {
-          const firstDoc: unknown = data.documents[0];
-          if (isFullyHydratedDocument(firstDoc)) {
-            handleLoadDraftInWorkspace(firstDoc.id, data.documents);
+          let targetDraft = null;
+          if (urlDraftId) {
+            targetDraft = data.documents.find((d: any) => d && typeof d === 'object' && 'id' in d && d.id === urlDraftId);
+            if (!targetDraft) {
+              console.warn(`Requested draft ID "${urlDraftId}" was not found in repository "${repoFullName}".`);
+              alert(`The requested draft was not found in this repository workspace. Loading the latest draft instead.`);
+            }
+          }
+          const docToLoad = targetDraft || data.documents[0];
+          
+          if (isFullyHydratedDocument(docToLoad)) {
+            handleLoadDraftInWorkspace(docToLoad.id, data.documents);
           } else {
             setIsDraftHydrated(false);
-            lastRequestedDraftIdRef.current = firstDoc.id;
-            fetchFullDocumentDetail(firstDoc.id);
+            lastRequestedDraftIdRef.current = docToLoad.id;
+            fetchFullDocumentDetail(docToLoad.id);
           }
         } else {
           // If no drafts exist, prepare a fresh draft
