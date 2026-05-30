@@ -520,7 +520,9 @@ export default function CMSWorkspace(): React.ReactElement {
 
   // Create a brand new draft within the active repository scope
   const handleCreateNewDraft = (configParam?: DraftConfig) => {
-    const configToUse = configParam || activeConfig;
+    // Prevent event objects from being treated as configuration objects when handler is passed to onClick directly
+    const isValidConfig = configParam && typeof configParam === 'object' && 'contentTypes' in configParam;
+    const configToUse = isValidConfig ? configParam : activeConfig;
     if (!configToUse || !configToUse.contentTypes || configToUse.contentTypes.length === 0) return;
 
     setSaveStatus('Idle');
@@ -532,7 +534,7 @@ export default function CMSWorkspace(): React.ReactElement {
     setActiveType(firstType.type);
     
     setTitle(`Draft ${newTypeLabel(firstType.type)} Entry`);
-    setSlug(`draft-${firstType.type}-entry`);
+    setSlug(`draft-${firstType.type}-entry-${newId}`);
     setStatus('draft');
     setMetadata({});
 
@@ -555,7 +557,7 @@ export default function CMSWorkspace(): React.ReactElement {
   const handleActiveTypeChange = (newType: string) => {
     setActiveType(newType);
     setTitle(`Draft ${newTypeLabel(newType)} Entry`);
-    setSlug(`draft-${newType}-entry`);
+    setSlug(`draft-${newType}-entry-${docId}`);
     setMetadata({});
     setBlocks([
       {
@@ -985,7 +987,7 @@ export default function CMSWorkspace(): React.ReactElement {
     }, 1200);
 
     return () => clearTimeout(debounceTimer);
-  }, [title, slug, blocks, metadata, activeType, selectedRepo, selectedBranch, status, user, githubInstallationId, isDraftHydrated]);
+  }, [docId, title, slug, blocks, metadata, activeType, selectedRepo, selectedBranch, status, user, githubInstallationId, isDraftHydrated]);
 
   // Refresh lists silently to preserve editor focus
   const refreshDraftListSilence = async () => {
@@ -1378,7 +1380,7 @@ export default function CMSWorkspace(): React.ReactElement {
           <aside className={`drafts-list-sidebar${draftsOpen ? ' drawer-open' : ''}`}>
             <div className="drafts-sidebar-header">
               <span className="drafts-header-title">Drafts Caching</span>
-              <button className="btn-create-new-draft" onClick={handleCreateNewDraft} title="Create New Draft" aria-label="Create new draft">
+              <button className="btn-create-new-draft" onClick={() => handleCreateNewDraft()} title="Create New Draft" aria-label="Create new draft">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
