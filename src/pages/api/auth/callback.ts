@@ -9,6 +9,23 @@ export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
 
+    const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+
+    if (isLocalhost && code === 'mock-e2e-code') {
+      const sessionSecret = env.SESSION_SECRET || 'default-fallback-pouta-key-32-chars-minimum';
+      const sealedCookie = await encryptToken('mock-github-token', sessionSecret);
+      const maxAge = 60 * 60 * 24 * 30; // 30 days
+      const cookieHeader = `pouta_session=${sealedCookie}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+      const adminPanelUrl = `${url.origin}/`;
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: adminPanelUrl,
+          'Set-Cookie': cookieHeader,
+        },
+      });
+    }
+
     if (!code) {
       return new Response(
         JSON.stringify({ success: false, error: 'OAuth code missing from authorization redirect.' }),

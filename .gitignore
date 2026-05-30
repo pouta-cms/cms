@@ -28,3 +28,5 @@ pnpm-debug.log*
 .wrangler/
 
 coverage/
+playwright-report/
+test-results/
