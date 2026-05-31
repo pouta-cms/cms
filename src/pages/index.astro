@@ -10,6 +10,7 @@ export const prerender = false;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Pouta CMS is a SaaS-ready, Git-backed headless CMS built for Cloudflare Pages + Workers. Manage your Markdown content with a Notion-like rich text editor." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Pouta CMS Workspace</title>
     <!-- Premium Fonts -->
@@ -33,7 +34,9 @@ export const prerender = false;
     </style>
   </head>
   <body>
-    <CMSWorkspace client:only="react" />
+    <main>
+      <CMSWorkspace client:only="react" />
+    </main>
   </body>
 </html>
 

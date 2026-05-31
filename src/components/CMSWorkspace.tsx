@@ -1241,12 +1241,14 @@ export default function CMSWorkspace(): React.ReactElement {
 
         {/* Global Repository Workspace selector */}
         <div className="workspace-site-selector-wrapper">
-          <label className="site-select-label">Workspace:</label>
+          <label htmlFor="site-select" className="site-select-label">Workspace:</label>
           {loadingRepos ? (
             <span className="text-slate-400 text-xs">Loading sites...</span>
           ) : (
             <select
+              id="site-select"
               className="site-select"
+              aria-label="Workspace"
               value={selectedRepo}
               onChange={(e) => handleRepoChange(e.target.value)}
             >
@@ -1663,9 +1665,11 @@ export default function CMSWorkspace(): React.ReactElement {
             {/* dynamic Content Type selection (if multiple types connected) */}
             <div className="sidebar-section-title">Active Collection</div>
             <div className="sidebar-group">
-              <label className="sidebar-label">Document Schema</label>
+              <label htmlFor="document-schema-select" className="sidebar-label">Document Schema</label>
               <select
+                id="document-schema-select"
                 className="sidebar-input pivot-select-sidebar"
+                aria-label="Document Schema"
                 value={activeType}
                 onChange={(e) => handleActiveTypeChange(e.target.value)}
               >
@@ -1701,10 +1705,11 @@ export default function CMSWorkspace(): React.ReactElement {
               
               return (
                 <div className="sidebar-group" key={field.name}>
-                  <label className="sidebar-label">{field.label}</label>
+                  <label htmlFor={`field-${field.name}`} className="sidebar-label">{field.label}</label>
                   
                   {field.type === 'text' && (
                     <input
+                      id={`field-${field.name}`}
                       type="text"
                       className="sidebar-input"
                       value={fieldValue}
@@ -1715,6 +1720,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
                   {field.type === 'slug' && (
                     <input
+                      id={`field-${field.name}`}
                       type="text"
                       className="sidebar-input"
                       value={fieldValue}
@@ -1725,6 +1731,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
                   {field.type === 'textarea' && (
                     <textarea
+                      id={`field-${field.name}`}
                       className="sidebar-textarea"
                       value={fieldValue}
                       onChange={(e) => handleMetadataChange(field.name, e.target.value)}
@@ -1736,6 +1743,7 @@ export default function CMSWorkspace(): React.ReactElement {
                   {field.type === 'description' && (
                     <div className="description-ai-wrapper">
                       <textarea
+                        id={`field-${field.name}`}
                         className="sidebar-textarea description-textarea"
                         value={fieldValue}
                         onChange={(e) => handleMetadataChange(field.name, e.target.value)}
@@ -1777,6 +1785,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
                   {field.type === 'number' && (
                     <input
+                      id={`field-${field.name}`}
                       type="number"
                       className="sidebar-input"
                       value={fieldValue}
@@ -1787,7 +1796,9 @@ export default function CMSWorkspace(): React.ReactElement {
 
                   {field.type === 'select' && (
                     <select
+                      id={`field-${field.name}`}
                       className="sidebar-input"
+                      aria-label={field.label}
                       value={fieldValue}
                       onChange={(e) => handleMetadataChange(field.name, e.target.value)}
                     >
@@ -1803,6 +1814,7 @@ export default function CMSWorkspace(): React.ReactElement {
                   {field.type === 'image' && (
                     <>
                       <input
+                        id={`field-${field.name}`}
                         type="text"
                         className="sidebar-input"
                         value={fieldValue}
@@ -1905,6 +1917,7 @@ export default function CMSWorkspace(): React.ReactElement {
                         ))}
                       </div>
                       <input
+                        id={`field-${field.name}`}
                         type="text"
                         className="sidebar-input tag-input-field"
                         placeholder="Add item and press Enter..."

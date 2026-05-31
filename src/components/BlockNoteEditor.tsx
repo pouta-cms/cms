@@ -34,6 +34,11 @@ export default function BlockNoteEditor({ initialContent, onChange, repoOwner, r
   // Initialize the BlockNote editor with a custom R2 uploader hook that returns a caption
   const editor = useCreateBlockNote({
     initialContent: initialBlocks,
+    domAttributes: {
+      editor: {
+        'aria-label': 'Rich Text Document Editor',
+      },
+    },
     uploadFile: async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
