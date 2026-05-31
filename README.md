@@ -17,6 +17,7 @@ Pouta CMS combines the speed, security, and developer experience of GitOps with 
 *   **GitOps Repo-Hosted Schemas**: Every connected website controls its own custom schemas, folder directories, and write paths in code via a root `pouta.config.json` committed to Git.
 *   **SaaS-First Multi-Tenancy**: Writers log in via GitHub OAuth, connect installations, and only see connected repository dropdowns. Edge APIs verify collaborator write access in real-time.
 *   **Isolated Edge Draft Caches**: Local drafts are cached instantly at the edge inside Cloudflare D1 (SQLite), scoped per repository, preventing unnecessary Git commit noise.
+*   **First-Class Accessibility (A11y)**: Built from the ground up to respect all users. Achieves 100% Lighthouse A11y and 10/10 WAVE compliance with semantic layout landmarks, high-contrast focus and skip states, and proper screen reader label associations.
 
 ---
 
