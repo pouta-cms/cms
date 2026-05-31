@@ -1231,11 +1231,16 @@ export default function CMSWorkspace(): React.ReactElement {
         </div>
       ) : (
         <div className="cms-layout">
+          {/* Accessibility Skip Link */}
+          <a href="#main-editor-canvas" className="skip-to-content">
+            Skip to editor content
+          </a>
+
       {/* Top Header Bar */}
       <header className="cms-header">
         <div className="header-logo">
           <img src="/logo.svg" alt="Pouta Logo" className="logo-img" />
-          <span className="logo-text">pouta</span>
+          <h1 className="logo-text">pouta</h1>
           <span className="logo-badge">Headless CMS</span>
         </div>
 
@@ -1388,7 +1393,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
           {/* User Profile avatar */}
           <div className="user-profile-badge">
-            <img src={user.avatar_url} alt={user.name} className="user-avatar" />
+            <img src={user.avatar_url} alt="" className="user-avatar" aria-hidden="true" />
             <span className="user-name">{user.name}</span>
             <a href="/api/auth/logout" className="btn-logout" title="Sign Out">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1495,10 +1500,10 @@ export default function CMSWorkspace(): React.ReactElement {
           <div className="cms-workspace-grid-three-col">
           
           {/* Column 1: isolated Drafts Panel (Left) */}
-          <aside className={`drafts-list-sidebar${draftsOpen ? ' drawer-open' : ''}`}>
+          <aside className={`drafts-list-sidebar${draftsOpen ? ' drawer-open' : ''}`} aria-label="Drafts caching">
             <div className="drafts-sidebar-header">
               <span className="drafts-header-title">Drafts Caching</span>
-              <button className="btn-create-new-draft" onClick={() => handleCreateNewDraft()} title="Create New Draft" aria-label="Create new draft">
+              <button className="btn-create-new-draft" onClick={() => handleCreateNewDraft()} aria-label="Create new draft">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -1538,7 +1543,6 @@ export default function CMSWorkspace(): React.ReactElement {
                         onKeyDown={(e) => {
                           e.stopPropagation();
                         }}
-                        title="Delete Draft"
                         aria-label="Delete draft"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1560,14 +1564,16 @@ export default function CMSWorkspace(): React.ReactElement {
           </aside>
 
           {/* Column 2: Visual BlockNote Canvas (Center) */}
-          <section className="canvas-pane">
+          <main id="main-editor-canvas" className="canvas-pane" tabIndex={-1} aria-label="Editor canvas">
             <div className="canvas-header-input-wrapper relative">
               <input
+                id="document-title-input"
                 type="text"
                 className="canvas-title-input"
                 value={title}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder="Enter document title..."
+                aria-label="Document Title"
               />
               
               {/* ✨ AI Headline Suggestions Trigger */}
@@ -1576,7 +1582,6 @@ export default function CMSWorkspace(): React.ReactElement {
                   <button
                     className={`btn-generate-headline-ai ${generatingHeadlines ? 'loading' : ''}`}
                     onClick={handleGenerateHeadlines}
-                    title="Brainstorm titles with Workers GenAI"
                     aria-label="Brainstorm titles with Workers GenAI"
                   >
                     {generatingHeadlines ? (
@@ -1657,10 +1662,10 @@ export default function CMSWorkspace(): React.ReactElement {
               )}
             </div>
 
-          </section>
+          </main>
 
           {/* Column 3: Declarative Metadata Form Sidebar (Right) */}
-          <aside className={`metadata-sidebar-pane${metaOpen ? ' drawer-open' : ''}`}>
+          <aside className={`metadata-sidebar-pane${metaOpen ? ' drawer-open' : ''}`} aria-label="Metadata properties">
             
             {/* dynamic Content Type selection (if multiple types connected) */}
             <div className="sidebar-section-title">Active Collection</div>
@@ -1686,10 +1691,11 @@ export default function CMSWorkspace(): React.ReactElement {
             <div className="sidebar-section-title">{activeTypeLabel} Settings</div>
             
             <div className="sidebar-group">
-              <label className="sidebar-label">Document Slug</label>
+              <label htmlFor="document-slug-input" className="sidebar-label">Document Slug</label>
               <div className="slug-input-wrapper">
                 <span className="slug-prefix">slug:</span>
                 <input
+                  id="document-slug-input"
                   type="text"
                   className="sidebar-input slug-input"
                   value={slug}
@@ -1994,7 +2000,7 @@ export default function CMSWorkspace(): React.ReactElement {
                 </div>
                 <div className="publish-meta-item">
                   <span className="publish-meta-label">File Path</span>
-                  <span className="publish-meta-value font-mono break-all" title={resolvedOutputPath}>
+                  <span className="publish-meta-value font-mono break-all">
                     {resolvedOutputPath}
                   </span>
                 </div>
@@ -2442,6 +2448,33 @@ export default function CMSWorkspace(): React.ReactElement {
           --accent-glow: 0 0 15px rgba(245, 158, 11, 0.4);
         }
 
+        /* Accessibility Skip Link styling */
+        .skip-to-content {
+          position: absolute;
+          top: -100px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #0f172a;
+          color: #ffffff;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-family: 'Outfit', 'Inter', sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          z-index: 9999;
+          transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 15px rgba(234, 88, 12, 0.4);
+          border: 2px solid #ea580c;
+        }
+
+        .skip-to-content:focus {
+          top: 15px;
+          outline: none;
+        }
+
         .cms-layout {
           background-color: var(--bg-dark);
           color: var(--text-light);
@@ -2576,6 +2609,7 @@ export default function CMSWorkspace(): React.ReactElement {
           text-transform: lowercase;
           display: flex;
           align-items: center;
+          margin: 0;
         }
 
         .logo-badge {
@@ -3014,15 +3048,15 @@ export default function CMSWorkspace(): React.ReactElement {
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid var(--border-color);
           color: var(--text-muted);
-          font-size: 0.65rem;
+          font-size: 0.78rem;
           font-weight: 600;
-          padding: 0.1rem 0.4rem;
+          padding: 0.15rem 0.45rem;
           border-radius: 4px;
           text-transform: capitalize;
         }
 
         .draft-item-status {
-          font-size: 0.65rem;
+          font-size: 0.78rem;
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.05em;
@@ -4288,7 +4322,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
         .publish-meta-label {
           font-family: 'Outfit', sans-serif;
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.03em;
@@ -4297,7 +4331,7 @@ export default function CMSWorkspace(): React.ReactElement {
 
         .publish-meta-value {
           font-family: 'Plus Jakarta Sans', sans-serif;
-          font-size: 11.5px;
+          font-size: 13.5px;
           color: white;
           font-weight: 500;
         }
