@@ -156,18 +156,18 @@ export const POST: APIRoute = async ({ request }) => {
         });
     }
 
-    // Call @cf/meta/llama-3-8b-instruct or fallback
+    // Call @cf/meta/llama-4-scout-17b-16e-instruct or fallback
     let aiResponse;
     try {
-      aiResponse = await ai.run('@cf/meta/llama-3-8b-instruct', {
+      aiResponse = await ai.run('@cf/meta/llama-4-scout-17b-16e-instruct', {
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
         ]
       });
     } catch (modelError: any) {
-      console.warn('Llama-3 model failed, falling back to Llama-2-7b-chat:', modelError.message);
-      aiResponse = await ai.run('@cf/meta/llama-2-7b-chat-fp16', {
+      console.warn('Llama-4 model failed, falling back to Llama-3.1-8b-instruct-fp8:', modelError.message);
+      aiResponse = await ai.run('@cf/meta/llama-3.1-8b-instruct-fp8', {
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
