@@ -197,8 +197,8 @@ Pouta uses two types of GitHub tokens:
 ## 11. AI Features (Workers AI)
 
 - AI binding: `env.AI` (bound in `wrangler.jsonc`)
-- Primary model: `@cf/meta/llama-3-8b-instruct`
-- Fallback model: `@cf/meta/llama-2-7b-chat-fp16`
+- Primary model: `@cf/meta/llama-4-scout-17b-16e-instruct`
+- Fallback model: `@cf/meta/llama-3.1-8b-instruct-fp8`
 - Vision primary: `@cf/meta/llama-3.2-11b-vision-instruct`
 - Vision fallback: `@cf/llava-hf/llava-1.5-7b-hf`
 - Always implement a try/catch fallback chain — never let AI failures surface as 500 errors

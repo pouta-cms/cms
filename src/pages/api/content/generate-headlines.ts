@@ -134,15 +134,15 @@ Return ONLY the 5 headlines, each on a new line. Do NOT include numbers, letters
 
     let aiResponse;
     try {
-      aiResponse = await ai.run('@cf/meta/llama-3-8b-instruct', {
+      aiResponse = await ai.run('@cf/meta/llama-4-scout-17b-16e-instruct', {
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Article content:\n${content}` }
         ]
       });
     } catch (modelError: any) {
-      console.warn('Llama-3 model failed for headlines, falling back to Llama-2-7b-chat:', modelError.message);
-      aiResponse = await ai.run('@cf/meta/llama-2-7b-chat-fp16', {
+      console.warn('Llama-4 model failed for headlines, falling back to Llama-3.1-8b-instruct-fp8:', modelError.message);
+      aiResponse = await ai.run('@cf/meta/llama-3.1-8b-instruct-fp8', {
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Article content:\n${content}` }

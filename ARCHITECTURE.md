@@ -402,13 +402,12 @@ graph TD
     Paywall -->|3. Query active subscription| D1["D1 SQLite Cache"]
     D1 -->|4. Active / Bypassed| Paywall
     Paywall -->|5. Proceed| WorkersAI["Cloudflare Workers AI Binding"]
-    WorkersAI -->|6. Attempt Llama-3-8b-instruct| Llama3["Meta Llama-3-8b"]
-    Llama3 -->|7. Success / Fail fallback| WorkersAI
-    WorkersAI -->|8. Fallback to Llama-2-7b-chat| Llama2["Meta Llama-2-7b"]
+    WorkersAI -->|6. Attempt Llama-4-Scout| Llama4["Meta Llama-4-Scout"]
+    Llama4 -->|7. Success / Fail fallback| WorkersAI
+    WorkersAI -->|8. Fallback to Llama-3.1-8b| Llama3["Meta Llama-3.1-8b"]
     WorkersAI -->|9. Raw Text Response| Parser["Clean & Validate Schema"]
     Parser -->|10. JSON Array / String| Client
 ```
-
 ### A. Multi-Modal AI Content Operations
 *   **AI Assist (`/api/content/ai-assist`)**: Performs inline text generation, correction, expansion, or summarization based on the current ProseMirror block selection and custom prompts.
 *   **SEO Description Generator (`/api/content/generate-description`)**: Analyzes the title and main content to compile an optimized SEO meta-description between 120 and 160 characters.
@@ -417,8 +416,8 @@ graph TD
 
 ### B. Edge-Level Resiliency & Fallback Strategy
 To guarantee 100% service uptime during high GPU demand or model deprecations, Pouta implements an automated failover loop:
-1. It attempts to run the instruction on `@cf/meta/llama-3-8b-instruct`.
-2. If the model throws an execution exception or returns empty, the catch block intercepts it, logs a warning, and immediately attempts execution on the fallback `@cf/meta/llama-2-7b-chat-fp16` model.
+1. It attempts to run the instruction on `@cf/meta/llama-4-scout-17b-16e-instruct`.
+2. If the model throws an execution exception or returns empty, the catch block intercepts it, logs a warning, and immediately attempts execution on the fallback `@cf/meta/llama-3.1-8b-instruct-fp8` model.
 3. This failover happens transparently at the edge in less than 200ms without surfacing errors to the end-user.
 
 ---

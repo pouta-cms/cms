@@ -2611,7 +2611,7 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       collabSpy.mockRestore();
     });
 
-    it('covers fallback to Llama-2 when Llama-3 fails for categories, description, and headlines', async () => {
+    it('covers fallback to Llama-3.1 when Llama-4 fails for categories, description, and headlines', async () => {
       const verifySpy = vi.spyOn(auth, 'verifySession').mockResolvedValue('token');
       const collabSpy = vi.spyOn(auth, 'verifyCollaborator').mockResolvedValue(true);
       mockDb.first.mockResolvedValue({ status: 'active', expires_at: 9999999999 });
@@ -2625,7 +2625,7 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       // Test categories fallback
       mockAi.run.mockReset();
       mockAi.run
-        .mockRejectedValueOnce(new Error('Llama-3 failed for categories'))
+        .mockRejectedValueOnce(new Error('Llama-4 failed for categories'))
         .mockResolvedValueOnce({ text: 'fallback, category, tags' });
 
       const contextCat = { request: new Request('https://cms.pouta.local/api/content/generate-categories', { method: 'POST', body }) } as any;
@@ -2637,7 +2637,7 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       // Test description fallback
       mockAi.run.mockReset();
       mockAi.run
-        .mockRejectedValueOnce(new Error('Llama-3 failed for description'))
+        .mockRejectedValueOnce(new Error('Llama-4 failed for description'))
         .mockResolvedValueOnce({ response: 'This is a beautifully generated fallback SEO meta description.' });
 
       const contextDesc = { request: new Request('https://cms.pouta.local/api/content/generate-description', { method: 'POST', body }) } as any;
@@ -2649,7 +2649,7 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       // Test headlines fallback
       mockAi.run.mockReset();
       mockAi.run
-        .mockRejectedValueOnce(new Error('Llama-3 failed for headlines'))
+        .mockRejectedValueOnce(new Error('Llama-4 failed for headlines'))
         .mockResolvedValueOnce({ response: 'Headline One\nHeadline Two\nHeadline Three' });
 
       const contextHead = { request: new Request('https://cms.pouta.local/api/content/generate-headlines', { method: 'POST', body }) } as any;
