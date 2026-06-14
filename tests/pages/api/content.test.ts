@@ -2633,6 +2633,8 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       expect(resCat.status).toBe(200);
       const catData = await resCat.json();
       expect(catData.categories).toEqual(['fallback', 'category', 'tags']);
+      expect(mockAi.run).toHaveBeenNthCalledWith(1, '@cf/meta/llama-4-scout-17b-16e-instruct', expect.any(Object));
+      expect(mockAi.run).toHaveBeenNthCalledWith(2, '@cf/meta/llama-3.1-8b-instruct-fp8', expect.any(Object));
 
       // Test description fallback
       mockAi.run.mockReset();
@@ -2645,6 +2647,8 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       expect(resDesc.status).toBe(200);
       const descData = await resDesc.json();
       expect(descData.description).toBe('This is a beautifully generated fallback SEO meta description.');
+      expect(mockAi.run).toHaveBeenNthCalledWith(1, '@cf/meta/llama-4-scout-17b-16e-instruct', expect.any(Object));
+      expect(mockAi.run).toHaveBeenNthCalledWith(2, '@cf/meta/llama-3.1-8b-instruct-fp8', expect.any(Object));
 
       // Test headlines fallback
       mockAi.run.mockReset();
@@ -2657,6 +2661,8 @@ describe('Content Management API Routes - Comprehensive Test Suite', () => {
       expect(resHead.status).toBe(200);
       const headData = await resHead.json();
       expect(headData.headlines).toEqual(['Headline One', 'Headline Two', 'Headline Three']);
+      expect(mockAi.run).toHaveBeenNthCalledWith(1, '@cf/meta/llama-4-scout-17b-16e-instruct', expect.any(Object));
+      expect(mockAi.run).toHaveBeenNthCalledWith(2, '@cf/meta/llama-3.1-8b-instruct-fp8', expect.any(Object));
 
       verifySpy.mockRestore();
       collabSpy.mockRestore();

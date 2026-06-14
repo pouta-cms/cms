@@ -417,7 +417,7 @@ graph TD
 ### B. Edge-Level Resiliency & Fallback Strategy
 To guarantee 100% service uptime during high GPU demand or model deprecations, Pouta implements an automated failover loop:
 1. It attempts to run the instruction on `@cf/meta/llama-4-scout-17b-16e-instruct`.
-2. If the model throws an execution exception or returns empty, the catch block intercepts it, logs a warning, and immediately attempts execution on the fallback `@cf/meta/llama-3.1-8b-instruct-fp8` model.
+2. If the model throws an execution exception, the catch block intercepts it, logs a warning, and immediately attempts execution on the fallback `@cf/meta/llama-3.1-8b-instruct-fp8` model.
 3. This failover happens transparently at the edge in less than 200ms without surfacing errors to the end-user.
 
 ---

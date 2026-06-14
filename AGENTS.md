@@ -22,7 +22,7 @@ The CMS targets **technical writers and content teams** who want a Notion-like e
 | Runtime | Cloudflare Workers (Edge) |
 | Database | Cloudflare D1 (SQLite at the edge) |
 | Object Storage | Cloudflare R2 |
-| AI Models | Cloudflare Workers AI (Llama 3, Llama 2, LLaVA) |
+| AI Models | Cloudflare Workers AI (Llama 4, Llama 3.1, LLaVA) |
 | Payments | Stripe (via webhook + D1 sync) |
 | Language | TypeScript (strict) |
 | Testing | Vitest v4 |
